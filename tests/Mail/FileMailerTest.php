@@ -57,6 +57,17 @@ final class FileMailerTest extends TestCase
         self::assertSame('ron@example.com', $payload['to']);
     }
 
+    public function testSendStoresFromAsNullInFilePayload(): void
+    {
+        $this->mailer->send($this->message());
+
+        $file = (glob($this->tempDir . '/*.mail') ?: [])[0];
+        $payload = json_decode((string) file_get_contents($file), true);
+
+        self::assertArrayHasKey('from', $payload);
+        self::assertNull($payload['from']);
+    }
+
     public function testSendWritesCorrectSubjectAndBody(): void
     {
         $this->mailer->send($this->message(subject: 'Welcome!', text: 'Thanks for joining.'));

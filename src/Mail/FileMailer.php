@@ -18,6 +18,7 @@ final class FileMailer implements Mailer
         }
 
         $payload = json_encode([
+            'from' => null,
             'to' => $message->to(),
             'subject' => $message->subject(),
             'text' => $message->text(),
