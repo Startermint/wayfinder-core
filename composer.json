@@ -11,7 +11,10 @@
         "php": "^8.2",
         "illuminate/config": "^12.0",
         "illuminate/events": "^12.0",
-        "illuminate/queue": "^12.0"
+        "illuminate/queue": "^12.0",
+        "illuminate/redis": "^12.0",
+        "pda/pheanstalk": "^7.0",
+        "predis/predis": "^3.2"
     },
     "autoload": {
         "psr-4": {
