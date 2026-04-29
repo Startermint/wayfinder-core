@@ -17,8 +17,10 @@ Wayfinder is designed around:
 It intentionally does not include:
 
 - an ORM
-- a queue system
+- a queue system by default
 - a large hidden abstraction layer
+
+If an application needs queues, Wayfinder now includes an optional Laravel-backed queue integration layer that can be bound explicitly without changing the default framework path.
 
 ## Mental Model
 

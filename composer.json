@@ -8,7 +8,10 @@
         "bin/wayfinder"
     ],
     "require": {
-        "php": "^8.2"
+        "php": "^8.2",
+        "illuminate/config": "^12.0",
+        "illuminate/events": "^12.0",
+        "illuminate/queue": "^12.0"
     },
     "autoload": {
         "psr-4": {
