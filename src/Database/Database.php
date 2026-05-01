@@ -110,8 +110,10 @@ final class Database
         try {
             $statement = $this->pdo->prepare($sql);
             $statement->execute($bindings);
+            $results = $statement->fetchAll();
+            $statement->closeCursor();
 
-            return $statement->fetchAll();
+            return $results;
         } catch (PDOException $exception) {
             throw new \RuntimeException('Database query failed.', 0, $exception);
         }
@@ -125,8 +127,10 @@ final class Database
         try {
             $statement = $this->pdo->prepare($sql);
             $statement->execute($bindings);
+            $result = $statement->fetch();
+            $statement->closeCursor();
 
-            return $statement->fetch();
+            return $result;
         } catch (PDOException $exception) {
             throw new \RuntimeException('Database query failed.', 0, $exception);
         }
@@ -140,8 +144,10 @@ final class Database
         try {
             $statement = $this->pdo->prepare($sql);
             $statement->execute($bindings);
+            $count = $statement->rowCount();
+            $statement->closeCursor();
 
-            return $statement->rowCount();
+            return $count;
         } catch (PDOException $exception) {
             throw new \RuntimeException('Database statement failed.', 0, $exception);
         }

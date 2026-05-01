@@ -11,6 +11,7 @@ use Wayfinder\Http\ValidationException;
 use Wayfinder\Logging\Logger;
 use Wayfinder\Logging\NullLogger;
 use Wayfinder\Routing\Router;
+use Wayfinder\Routing\UrlGenerator;
 
 final class AppKernel
 {
@@ -18,11 +19,14 @@ final class AppKernel
         private readonly Router $router,
         private readonly bool $debug = false,
         private readonly Logger $logger = new NullLogger(),
+        private readonly ?UrlGenerator $url = null,
     ) {
     }
 
     public function handle(Request $request): Response
     {
+        $this->url?->setRequest($request);
+
         try {
             return $this->router->dispatch($request);
         } catch (Throwable $throwable) {

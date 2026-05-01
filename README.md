@@ -30,6 +30,30 @@ If an application needs queues, Wayfinder now includes an optional Laravel-backe
 - `DB` = low-level control
 - `DTO` = explicit output shape
 
+## View Helpers
+
+In PHP views, prefer Wayfinder helpers over raw escaping or hard-coded internal paths:
+
+```php
+<?= e($title) ?>
+<?= e(url('health')) ?>
+<?= e(asset('img/photo.jpg')) ?>
+```
+
+See `docs/view-helpers.md` for the full helper list.
+
+## Path Helpers
+
+Use path helpers after bootstrap instead of manual `__DIR__` path assembly:
+
+```php
+storage_path('logs/app.log')
+database_path('migrations')
+config_path('app.php')
+```
+
+See `docs/path-helpers.md`.
+
 ## Use Wayfinder Through Stackmint
 
 Most developers should start from the Stackmint starter rather than consuming the core package in isolation.

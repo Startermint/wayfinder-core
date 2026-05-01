@@ -4,7 +4,10 @@ declare(strict_types=1);
 
 use Wayfinder\Database\DB;
 use Wayfinder\Database\Database;
+use Wayfinder\Contracts\Htmlable;
+use Wayfinder\Routing\UrlGenerator;
 use Wayfinder\Support\Events;
+use Wayfinder\Support\PathResolver;
 
 if (! function_exists('event')) {
     function event(string $event, mixed ...$payload): void
@@ -27,6 +30,102 @@ if (! function_exists('listen')) {
     }
 }
 
+if (! function_exists('base_path')) {
+    function base_path(?string $path = null): string
+    {
+        return PathResolver::resolve()->base($path);
+    }
+}
+
+if (! function_exists('app_path')) {
+    function app_path(?string $path = null): string
+    {
+        return PathResolver::resolve()->app($path);
+    }
+}
+
+if (! function_exists('config_path')) {
+    function config_path(?string $path = null): string
+    {
+        return PathResolver::resolve()->config($path);
+    }
+}
+
+if (! function_exists('database_path')) {
+    function database_path(?string $path = null): string
+    {
+        return PathResolver::resolve()->database($path);
+    }
+}
+
+if (! function_exists('lang_path')) {
+    function lang_path(?string $path = null): string
+    {
+        return PathResolver::resolve()->lang($path);
+    }
+}
+
+if (! function_exists('public_path')) {
+    function public_path(?string $path = null): string
+    {
+        return PathResolver::resolve()->public($path);
+    }
+}
+
+if (! function_exists('resource_path')) {
+    function resource_path(?string $path = null): string
+    {
+        return PathResolver::resolve()->resource($path);
+    }
+}
+
+if (! function_exists('storage_path')) {
+    function storage_path(?string $path = null): string
+    {
+        return PathResolver::resolve()->storage($path);
+    }
+}
+
+if (! function_exists('url')) {
+    /**
+     * @param array<int|string, mixed> $parameters
+     */
+    function url(?string $path = null, array $parameters = []): UrlGenerator|string
+    {
+        $generator = UrlGenerator::resolve();
+
+        if ($path === null) {
+            return $generator;
+        }
+
+        return $generator->to($path, $parameters);
+    }
+}
+
+if (! function_exists('secure_url')) {
+    /**
+     * @param array<int|string, mixed> $parameters
+     */
+    function secure_url(string $path = '', array $parameters = []): string
+    {
+        return UrlGenerator::resolve()->secure($path, $parameters);
+    }
+}
+
+if (! function_exists('asset')) {
+    function asset(string $path = ''): string
+    {
+        return UrlGenerator::resolve()->asset($path);
+    }
+}
+
+if (! function_exists('assets')) {
+    function assets(string $path = ''): string
+    {
+        return asset($path);
+    }
+}
+
 if (! function_exists('e')) {
     function e(mixed $value): string
     {
@@ -34,11 +133,16 @@ if (! function_exists('e')) {
             return '';
         }
 
+        if ($value instanceof Htmlable) {
+            return $value->toHtml();
+        }
+
         if (is_scalar($value) || (is_object($value) && method_exists($value, '__toString'))) {
             return htmlspecialchars(
                 (string) $value,
                 ENT_QUOTES | ENT_HTML5 | ENT_SUBSTITUTE,
-                'UTF-8'
+                'UTF-8',
+                false,
             );
         }
 
@@ -147,107 +251,127 @@ if (! function_exists('selected_attribute')) {
 }
 
 
-// Escape for inline JS contexts (json_encode is safer than htmlspecialchars here)
-function js_escape(mixed $value): string
-{
-    return json_encode($value, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP | JSON_THROW_ON_ERROR);
-}
-
-// Escape for use inside CSS <style> blocks or style attributes
-function css_escape(string $value): string
-{
-    return preg_replace('/[^a-zA-Z0-9\-_]/', '', $value);
-}
-
-// URL encode a single query parameter value
-function url_escape(string $value): string
-{
-    return rawurlencode($value);
-}
-
-
-// Build a URL with a query string from an array
-function url_with_query(string $base, array $params): string
-{
-    $query = http_build_query(array_filter($params, fn($v) => $v !== null && $v !== ''));
-    return $query !== '' ? $base . '?' . $query : $base;
-}
-
-// Check if a URL is safe to redirect to (prevents open redirect)
-function is_safe_redirect(string $url, string $allowedHost): bool
-{
-    $parsed = parse_url($url);
-    if (isset($parsed['host']) && $parsed['host'] !== $allowedHost) {
-        return false;
+if (! function_exists('js_escape')) {
+    // Escape for inline JS contexts (json_encode is safer than htmlspecialchars here)
+    function js_escape(mixed $value): string
+    {
+        return json_encode($value, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP | JSON_THROW_ON_ERROR);
     }
-    return true;
 }
 
-
-// Truncate a string without breaking words
-function str_truncate(string $value, int $limit, string $end = '...'): string
-{
-    if (mb_strlen($value) <= $limit) {
-        return $value;
+if (! function_exists('css_escape')) {
+    // Escape for use inside CSS <style> blocks or style attributes
+    function css_escape(string $value): string
+    {
+        return preg_replace('/[^a-zA-Z0-9\-_]/', '', $value);
     }
-    return rtrim(mb_substr($value, 0, $limit)) . $end;
 }
 
-// Convert a string to a URL-safe slug
-function slugify(string $value, string $separator = '-'): string
-{
-    $value = mb_strtolower(trim($value));
-    $value = preg_replace('/[^\w\s-]/u', '', $value);
-    return preg_replace('/[\s_-]+/', $separator, $value);
+if (! function_exists('url_escape')) {
+    // URL encode a single query parameter value
+    function url_escape(string $value): string
+    {
+        return rawurlencode($value);
+    }
 }
 
-// Safely get a nested array value without isset chains
-function array_get(array $array, string $key, mixed $default = null): mixed
-{
-    $keys = explode('.', $key);
-    foreach ($keys as $segment) {
-        if (! is_array($array) || ! array_key_exists($segment, $array)) {
-            return $default;
+if (! function_exists('url_with_query')) {
+    // Build a URL with a query string from an array
+    function url_with_query(string $base, array $params): string
+    {
+        $query = http_build_query(array_filter($params, fn($v) => $v !== null && $v !== ''));
+        return $query !== '' ? $base . '?' . $query : $base;
+    }
+}
+
+if (! function_exists('is_safe_redirect')) {
+    // Check if a URL is safe to redirect to (prevents open redirect)
+    function is_safe_redirect(string $url, string $allowedHost): bool
+    {
+        $parsed = parse_url($url);
+        if (isset($parsed['host']) && $parsed['host'] !== $allowedHost) {
+            return false;
         }
-        $array = $array[$segment];
+        return true;
     }
-    return $array;
 }
 
-// Pluck a single key from an array of arrays/objects
-function array_pluck(array $items, string $key): array
-{
-    return array_map(fn($item) => is_array($item) ? ($item[$key] ?? null) : ($item->$key ?? null), $items);
+if (! function_exists('str_truncate')) {
+    // Truncate a string without breaking words
+    function str_truncate(string $value, int $limit, string $end = '...'): string
+    {
+        if (mb_strlen($value) <= $limit) {
+            return $value;
+        }
+        return rtrim(mb_substr($value, 0, $limit)) . $end;
+    }
 }
 
-// Conditionally render a class string (similar to clsx/classnames in JS)
-function class_names(mixed ...$args): string
-{
-    $classes = [];
-    foreach ($args as $arg) {
-        if (is_string($arg) && $arg !== '') {
-            $classes[] = $arg;
-        } elseif (is_array($arg)) {
-            foreach ($arg as $class => $condition) {
-                if (is_int($class) && is_string($condition)) {
-                    $classes[] = $condition;
-                } elseif ($condition) {
-                    $classes[] = $class;
+if (! function_exists('slugify')) {
+    // Convert a string to a URL-safe slug
+    function slugify(string $value, string $separator = '-'): string
+    {
+        $value = mb_strtolower(trim($value));
+        $value = preg_replace('/[^\w\s-]/u', '', $value);
+        return preg_replace('/[\s_-]+/', $separator, $value);
+    }
+}
+
+if (! function_exists('array_get')) {
+    // Safely get a nested array value without isset chains
+    function array_get(array $array, string $key, mixed $default = null): mixed
+    {
+        $keys = explode('.', $key);
+        foreach ($keys as $segment) {
+            if (! is_array($array) || ! array_key_exists($segment, $array)) {
+                return $default;
+            }
+            $array = $array[$segment];
+        }
+        return $array;
+    }
+}
+
+if (! function_exists('array_pluck')) {
+    // Pluck a single key from an array of arrays/objects
+    function array_pluck(array $items, string $key): array
+    {
+        return array_map(fn($item) => is_array($item) ? ($item[$key] ?? null) : ($item->$key ?? null), $items);
+    }
+}
+
+if (! function_exists('class_names')) {
+    // Conditionally render a class string (similar to clsx/classnames in JS)
+    function class_names(mixed ...$args): string
+    {
+        $classes = [];
+        foreach ($args as $arg) {
+            if (is_string($arg) && $arg !== '') {
+                $classes[] = $arg;
+            } elseif (is_array($arg)) {
+                foreach ($arg as $class => $condition) {
+                    if (is_int($class) && is_string($condition)) {
+                        $classes[] = $condition;
+                    } elseif ($condition) {
+                        $classes[] = $class;
+                    }
                 }
             }
         }
+        return implode(' ', $classes);
     }
-    return implode(' ', $classes);
 }
 
-// Render an HTML tag
-function html_tag(string $tag, array $attributes = [], ?string $content = null): string
-{
-    $void = in_array($tag, ['br','hr','img','input','link','meta','area','base','col','embed','param','source','track','wbr'], true);
-    $attrString = attrs($attributes);
-    $open = $attrString !== '' ? "<{$tag} {$attrString}>" : "<{$tag}>";
-    if ($void) {
-        return $open;
+if (! function_exists('html_tag')) {
+    // Render an HTML tag
+    function html_tag(string $tag, array $attributes = [], ?string $content = null): string
+    {
+        $void = in_array($tag, ['br','hr','img','input','link','meta','area','base','col','embed','param','source','track','wbr'], true);
+        $attrString = attrs($attributes);
+        $open = $attrString !== '' ? "<{$tag} {$attrString}>" : "<{$tag}>";
+        if ($void) {
+            return $open;
+        }
+        return $open . ($content !== null ? e($content) : '') . "</{$tag}>";
     }
-    return $open . ($content !== null ? e($content) : '') . "</{$tag}>";
 }

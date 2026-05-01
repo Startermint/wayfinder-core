@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title><?= htmlspecialchars($appName, ENT_QUOTES, 'UTF-8') ?></title>
+    <title><?= e($appName) ?></title>
     <style>
         :root {
             --bg: #f4f7f5;
@@ -484,16 +484,16 @@
 <body>
 <div class="shell">
     <header class="topbar">
-        <a class="brand" href="/">
+        <a class="brand" href="<?= e(url('/')) ?>">
             <span class="brand-mark">W</span>
             <span class="brand-copy">
-                <span class="brand-name"><?= htmlspecialchars($appName, ENT_QUOTES, 'UTF-8') ?></span>
+                <span class="brand-name"><?= e($appName) ?></span>
                 <span class="brand-meta">PHP framework starter</span>
             </span>
         </a>
         <nav class="topnav">
-            <span>v<?= htmlspecialchars($appVersion, ENT_QUOTES, 'UTF-8') ?></span>
-            <a href="/health">Health</a>
+            <span>v<?= e($appVersion) ?></span>
+            <a href="<?= e(url('health')) ?>">Health</a>
             <a href="https://github.com/trafficinc/stackmint">GitHub</a>
         </nav>
     </header>
@@ -504,7 +504,7 @@
             <h1>Build in public code, not hidden framework layers.</h1>
             <p class="lede">Wayfinder keeps the application surface explicit so developers and AI tools can reason about routing, requests, views, validation, and data access without digging through heavy framework indirection.</p>
             <div class="cta-row">
-                <a class="button button-primary" href="/health">Run Health Check</a>
+                <a class="button button-primary" href="<?= e(url('health')) ?>">Run Health Check</a>
                 <a class="button button-secondary" href="#demo">See Request Demo</a>
             </div>
             <div class="hero-proof">
@@ -532,16 +532,16 @@
                 <div class="status-item">
                     <div>
                         <dt>Framework</dt>
-                        <dd>Wayfinder v<?= htmlspecialchars($appVersion, ENT_QUOTES, 'UTF-8') ?></dd>
+                        <dd>Wayfinder v<?= e($appVersion) ?></dd>
                     </div>
                     <span class="status-badge">Ready</span>
                 </div>
                 <div class="status-item">
                     <div>
                         <dt>Request Path</dt>
-                        <dd><?= htmlspecialchars($path, ENT_QUOTES, 'UTF-8') ?></dd>
+                        <dd><?= e($path) ?></dd>
                     </div>
-                    <span class="status-badge"><?= htmlspecialchars($method, ENT_QUOTES, 'UTF-8') ?></span>
+                    <span class="status-badge"><?= e($method) ?></span>
                 </div>
                 <div class="status-item">
                     <div>
@@ -586,16 +586,16 @@
             <h2>Prove the lifecycle is live</h2>
             <p>This form is intentionally small. It exercises CSRF, validation, flash messages, old input, and redirect-back behavior from the default starter.</p>
             <?php if (is_string($flashMessage) && $flashMessage !== ''): ?>
-                <div class="flash"><?= htmlspecialchars($flashMessage, ENT_QUOTES, 'UTF-8') ?></div>
+                <div class="flash"><?= e($flashMessage) ?></div>
             <?php endif; ?>
             <?php if (is_string($form->error('message', 'contact'))): ?>
-                <div class="errors"><?= htmlspecialchars($form->error('message', 'contact') ?? '', ENT_QUOTES, 'UTF-8') ?></div>
+                <div class="errors"><?= e($form->error('message', 'contact') ?? '') ?></div>
             <?php endif; ?>
-            <form method="post" action="/contact">
+            <form method="post" action="<?= e(url('contact')) ?>">
                 <?= $form->csrfField() ?>
                 <input type="hidden" name="_redirect" value="/">
                 <label for="message">Message</label>
-                <textarea id="message" name="message" placeholder="Submit a short message to verify the request lifecycle."><?= htmlspecialchars((string) $form->old('message', '', 'contact'), ENT_QUOTES, 'UTF-8') ?></textarea>
+                <textarea id="message" name="message" placeholder="Submit a short message to verify the request lifecycle."><?= e((string) $form->old('message', '', 'contact')) ?></textarea>
                 <button type="submit">Submit Demo Request</button>
             </form>
         </article>

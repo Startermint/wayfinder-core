@@ -50,7 +50,7 @@ final class MakeViewCommand implements Command
 
         $template = <<<'PHP'
 <section>
-    <h1><?= htmlspecialchars($title ?? 'Wayfinder View', ENT_QUOTES, 'UTF-8') ?></h1>
+    <h1><?= e($title ?? 'Wayfinder View') ?></h1>
 </section>
 PHP;
 
