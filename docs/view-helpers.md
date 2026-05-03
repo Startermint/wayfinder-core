@@ -2,6 +2,10 @@
 
 Use Wayfinder helpers in PHP views instead of raw escaping or hard-coded internal paths.
 
+Developer-owned application views live under `resources/views` by default. Dot
+notation resolves against that directory, so `home.index` maps to
+`resources/views/home/index.php`.
+
 ```php
 <?= e($title) ?>
 <a href="<?= e(url('health')) ?>">Health</a>
