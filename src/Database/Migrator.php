@@ -57,7 +57,11 @@ final class Migrator
             try {
                 $migration->up($this->database);
                 $this->repository->log($name, $batch);
-                $this->database->commit();
+
+                if ($this->database->inTransaction()) {
+                    $this->database->commit();
+                }
+
                 $ran[] = $name;
             } catch (\Throwable $throwable) {
                 if ($this->database->inTransaction()) {
@@ -159,7 +163,10 @@ final class Migrator
         try {
             $migration->down($this->database);
             $this->repository->delete($name);
-            $this->database->commit();
+
+            if ($this->database->inTransaction()) {
+                $this->database->commit();
+            }
 
             return $name;
         } catch (\Throwable $throwable) {

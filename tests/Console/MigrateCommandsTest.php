@@ -74,6 +74,17 @@ final class MigrateCommandsTest extends TestCase
         self::assertTableExists('foo');
     }
 
+    public function testMigrateDoesNotCommitWhenMigrationAlreadyEndedTransaction(): void
+    {
+        $this->writeMigrationThatEndsTransaction('0001_create_foo');
+
+        $ran = $this->migrator()->run();
+
+        self::assertSame(['0001_create_foo'], $ran);
+        self::assertTableExists('foo');
+        self::assertContains('0001_create_foo', (new MigrationRepository($this->db))->ran());
+    }
+
     // =========================================================================
     // migrate — failure propagation and transaction rollback
     // =========================================================================
@@ -169,6 +180,19 @@ final class MigrateCommandsTest extends TestCase
 
         self::assertSame(0, $code);
         self::assertTableNotExists('foo');
+    }
+
+    public function testRollbackDoesNotCommitWhenMigrationAlreadyEndedTransaction(): void
+    {
+        $this->writeMigrationThatEndsTransaction('0001_create_foo');
+        $m = $this->migrator();
+        $m->run();
+
+        $rolledBack = $m->rollback();
+
+        self::assertSame(['0001_create_foo'], $rolledBack);
+        self::assertTableNotExists('foo');
+        self::assertNotContains('0001_create_foo', (new MigrationRepository($this->db))->ran());
     }
 
     public function testRollbackOnlyRollsBackLastBatch(): void
@@ -385,6 +409,29 @@ final class MigrateCommandsTest extends TestCase
         return new class implements Migration {
             public function up(Database $db): void   { throw new \RuntimeException('Deliberate migration failure'); }
             public function down(Database $db): void {}
+        };
+        PHP;
+        file_put_contents($this->migDir . '/' . $name . '.php', $code);
+    }
+
+    private function writeMigrationThatEndsTransaction(string $name): void
+    {
+        $code = <<<'PHP'
+        <?php
+        use Wayfinder\Database\Database;
+        use Wayfinder\Database\Migration;
+        return new class implements Migration {
+            public function up(Database $db): void
+            {
+                $db->statement('CREATE TABLE foo (id INTEGER PRIMARY KEY)');
+                $db->commit();
+            }
+
+            public function down(Database $db): void
+            {
+                $db->statement('DROP TABLE IF EXISTS foo');
+                $db->commit();
+            }
         };
         PHP;
         file_put_contents($this->migDir . '/' . $name . '.php', $code);
