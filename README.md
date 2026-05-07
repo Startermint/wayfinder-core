@@ -54,6 +54,12 @@ config_path('app.php')
 
 See `docs/path-helpers.md`.
 
+## Validation
+
+`Request::validate()` supports common production form and API rules, including presence rules, string and format checks, numeric/date comparisons, nested wildcard array validation, database `exists`/`unique` checks, and upload metadata checks.
+
+See `docs/validation.md`.
+
 ## Use Wayfinder Through Stackmint
 
 Most developers should start from the Stackmint starter rather than consuming the core package in isolation.

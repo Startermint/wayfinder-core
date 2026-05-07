@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Wayfinder\Tests\Validation;
 
 use PHPUnit\Framework\TestCase;
+use Wayfinder\Http\Request;
 use Wayfinder\Http\ValidationException;
 use Wayfinder\Tests\Concerns\MakesRequests;
 use Wayfinder\Tests\Concerns\UsesDatabase;
@@ -432,5 +433,176 @@ final class ValidationTest extends TestCase
         );
 
         self::assertArrayNotHasKey('extra', $validated);
+    }
+
+    // -------------------------------------------------------------------------
+    // Production validation rules
+    // -------------------------------------------------------------------------
+
+    public function testSometimesSkipsMissingField(): void
+    {
+        self::assertSame([], $this->validate(['name' => 'sometimes|required|string'], []));
+    }
+
+    public function testPresentRequiresKeyEvenWhenEmpty(): void
+    {
+        $this->assertValidationFails(['name' => 'present'], [], 'name');
+
+        $validated = $this->validate(['name' => 'present|nullable'], ['name' => '']);
+        self::assertNull($validated['name']);
+    }
+
+    public function testFilledFailsWhenPresentButEmpty(): void
+    {
+        $this->assertValidationFails(['name' => 'filled'], ['name' => ''], 'name');
+    }
+
+    public function testFilledAllowsMissingField(): void
+    {
+        self::assertSame([], $this->validate(['name' => 'filled'], []));
+    }
+
+    public function testConditionalRequiredRules(): void
+    {
+        $this->assertValidationFails(['reason' => 'required_if:status,rejected'], ['status' => 'rejected'], 'reason');
+        $this->assertValidationFails(['reason' => 'required_unless:status,draft'], ['status' => 'published'], 'reason');
+        $this->assertValidationFails(['phone' => 'required_with:contact'], ['contact' => 'yes'], 'phone');
+        $this->assertValidationFails(['email' => 'required_without:phone'], [], 'email');
+    }
+
+    public function testAlphaSlugUuidRegexAndInRules(): void
+    {
+        $validated = $this->validate(
+            [
+                'first' => 'alpha',
+                'code' => 'alpha_num',
+                'handle' => 'alpha_dash',
+                'slug' => 'slug',
+                'id' => 'uuid',
+                'state' => ['regex:/^[A-Z]{2}$/', 'not_in:ZZ'],
+                'role' => 'in:admin,editor',
+            ],
+            [
+                'first' => 'Ron',
+                'code' => 'A123',
+                'handle' => 'ron_bailey-1',
+                'slug' => 'roof-repair',
+                'id' => '550e8400-e29b-41d4-a716-446655440000',
+                'state' => 'OH',
+                'role' => 'admin',
+            ],
+        );
+
+        self::assertSame('roof-repair', $validated['slug']);
+        $this->assertValidationFails(['slug' => 'slug'], ['slug' => 'Bad Slug'], 'slug');
+        $this->assertValidationFails(['state' => ['not_regex:/^[A-Z]{2}$/']], ['state' => 'OH'], 'state');
+    }
+
+    public function testAdditionalFormatRules(): void
+    {
+        $validated = $this->validate(
+            [
+                'tz' => 'timezone',
+                'ip' => 'ip',
+                'v4' => 'ipv4',
+                'v6' => 'ipv6',
+                'payload' => 'json',
+                'lower' => 'lowercase',
+                'upper' => 'uppercase',
+            ],
+            [
+                'tz' => 'America/New_York',
+                'ip' => '127.0.0.1',
+                'v4' => '127.0.0.1',
+                'v6' => '2001:db8::1',
+                'payload' => '{"ok":true}',
+                'lower' => 'abc',
+                'upper' => 'ABC',
+            ],
+        );
+
+        self::assertSame('America/New_York', $validated['tz']);
+        $this->assertValidationFails(['payload' => 'json'], ['payload' => '{bad'], 'payload');
+    }
+
+    public function testComparableRules(): void
+    {
+        $validated = $this->validate(
+            [
+                'qty' => 'numeric|gt:1|gte:2|lt:10|lte:9|between:2,9|size:5',
+                'name' => 'string|size:3',
+            ],
+            ['qty' => '5', 'name' => 'Ron'],
+        );
+
+        self::assertSame('5', $validated['qty']);
+        $this->assertValidationFails(['qty' => 'numeric|gt:10'], ['qty' => '5'], 'qty');
+        $this->assertValidationFails(['name' => 'string|between:4,8'], ['name' => 'Ron'], 'name');
+    }
+
+    public function testDateComparisonRulesCanUseLiteralDatesAndFields(): void
+    {
+        $validated = $this->validate(
+            [
+                'start' => 'date|after:2026-01-01',
+                'end' => 'date|after_or_equal:start|before:2026-12-31',
+                'renewal' => 'date|before_or_equal:end',
+            ],
+            [
+                'start' => '2026-05-01',
+                'end' => '2026-05-10',
+                'renewal' => '2026-05-10',
+            ],
+        );
+
+        self::assertSame('2026-05-10', $validated['end']);
+        $this->assertValidationFails(['end' => 'date|after:start'], ['start' => '2026-05-10', 'end' => '2026-05-01'], 'end');
+    }
+
+    public function testWildcardArrayRulesValidateNestedValuesAndMissingRequiredKeys(): void
+    {
+        $validated = $this->validate(
+            [
+                'items' => 'array|max:2',
+                'items.*.sku' => 'required|string|alpha_dash',
+                'items.*.qty' => 'required|integer|min:1',
+            ],
+            [
+                'items' => [
+                    ['sku' => 'ABC-1', 'qty' => '2'],
+                    ['sku' => 'DEF_2', 'qty' => '1'],
+                ],
+            ],
+        );
+
+        self::assertSame('ABC-1', $validated['items'][0]['sku']);
+        $this->assertValidationFails(['items.*.sku' => 'required'], ['items' => [['sku' => 'A'], ['qty' => '1']]], 'items.1.sku');
+    }
+
+    public function testFileRulesValidateUploadedFileMetadata(): void
+    {
+        $request = new Request(
+            method: 'POST',
+            path: '/',
+            query: [],
+            request: [],
+            cookies: [],
+            files: [
+                'avatar' => [
+                    'name' => 'avatar.png',
+                    'type' => 'image/png',
+                    'tmp_name' => '/tmp/avatar',
+                    'error' => UPLOAD_ERR_OK,
+                    'size' => 1024,
+                ],
+            ],
+            server: [],
+            headers: [],
+            body: '',
+        );
+
+        $validated = $request->validate(['avatar' => 'required|file|uploaded|image|mimes:png,jpg|max_file:2']);
+
+        self::assertSame('avatar.png', $validated['avatar']['name']);
     }
 }
