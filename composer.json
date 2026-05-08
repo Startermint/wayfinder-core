@@ -2,7 +2,6 @@
     "name": "wayfinder/core",
     "description": "Wayfinder, an explicit, no-magic PHP framework core.",
     "type": "library",
-    "version": "0.0.1",
     "license": "MIT",
     "bin": [
         "bin/wayfinder"
