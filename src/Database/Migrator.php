@@ -27,6 +27,27 @@ final class Migrator
         $files = $this->migrationFiles();
         $ran = array_flip($this->repository->ran());
 
+        return $this->pendingFromFiles($files, $ran);
+    }
+
+    /**
+     * @return list<string>
+     */
+    public function pendingWithoutCreatingRepository(): array
+    {
+        $files = $this->migrationFiles();
+        $ran = array_flip($this->ranMigrationsWithoutCreatingRepository());
+
+        return $this->pendingFromFiles($files, $ran);
+    }
+
+    /**
+     * @param array<string, string> $files
+     * @param array<string, int> $ran
+     * @return list<string>
+     */
+    private function pendingFromFiles(array $files, array $ran): array
+    {
         return array_values(array_filter(
             array_keys($files),
             static fn (string $migration): bool => ! isset($ran[$migration]),
@@ -73,6 +94,27 @@ final class Migrator
         }
 
         return $ran;
+    }
+
+    /**
+     * @return array<string, list<array{sql: string, bindings: list<mixed>}>>
+     */
+    public function pretend(): array
+    {
+        $files = $this->migrationFiles();
+        $pending = $this->pendingWithoutCreatingRepository();
+
+        $statements = [];
+
+        foreach ($pending as $name) {
+            $migration = $this->resolveMigration($files[$name]);
+
+            $statements[$name] = $this->database->pretend(function () use ($migration): void {
+                $migration->up($this->database);
+            });
+        }
+
+        return $statements;
     }
 
     /**
@@ -216,5 +258,17 @@ final class Migrator
         }
 
         return $migration;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function ranMigrationsWithoutCreatingRepository(): array
+    {
+        try {
+            return $this->repository->ranWithoutCreating();
+        } catch (\RuntimeException) {
+            return [];
+        }
     }
 }

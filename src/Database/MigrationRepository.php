@@ -35,6 +35,14 @@ final class MigrationRepository
     {
         $this->ensureExists();
 
+        return $this->ranWithoutCreating();
+    }
+
+    /**
+     * @return list<string>
+     */
+    public function ranWithoutCreating(): array
+    {
         return array_map(
             static fn (array $row): string => (string) $row['migration'],
             $this->database->query(sprintf('SELECT migration FROM %s ORDER BY migration ASC', $this->table)),

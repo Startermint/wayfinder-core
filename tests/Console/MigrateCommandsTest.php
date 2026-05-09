@@ -11,6 +11,7 @@ use Wayfinder\Console\MigrateResetCommand;
 use Wayfinder\Console\MigrateRollbackCommand;
 use Wayfinder\Console\MigrateStatusCommand;
 use Wayfinder\Database\Database;
+use Wayfinder\Database\DB;
 use Wayfinder\Database\MigrationRepository;
 use Wayfinder\Database\Migrator;
 use Wayfinder\Tests\Concerns\UsesTempDirectory;
@@ -26,12 +27,14 @@ final class MigrateCommandsTest extends TestCase
     {
         $this->setUpTempDirectory();
         $this->db     = new Database(['driver' => 'sqlite', 'path' => ':memory:']);
+        DB::setResolver(fn (?string $name = null): Database => $this->db);
         $this->migDir = $this->tempDir . '/migrations';
         mkdir($this->migDir, 0777, true);
     }
 
     protected function tearDown(): void
     {
+        DB::setResolver(static fn (?string $name = null) => throw new \RuntimeException('DB resolver not configured.'));
         $this->tearDownTempDirectory();
     }
 
@@ -83,6 +86,89 @@ final class MigrateCommandsTest extends TestCase
         self::assertSame(['0001_create_foo'], $ran);
         self::assertTableExists('foo');
         self::assertContains('0001_create_foo', (new MigrationRepository($this->db))->ran());
+    }
+
+    public function testMigratePretendCapturesSqlWithoutRunningOrLoggingMigration(): void
+    {
+        $this->writeMigration('0001_create_foo', up: 'CREATE TABLE foo (id INTEGER PRIMARY KEY)');
+
+        $preview = $this->migrator()->pretend();
+
+        self::assertSame(
+            [
+                '0001_create_foo' => [
+                    [
+                        'sql' => 'CREATE TABLE foo (id INTEGER PRIMARY KEY)',
+                        'bindings' => [],
+                    ],
+                ],
+            ],
+            $preview,
+        );
+        self::assertTableNotExists('foo');
+        self::assertTableNotExists('migrations');
+    }
+
+    public function testMigratePretendCapturesSchemaBuilderSql(): void
+    {
+        $this->writeSchemaMigration('0001_create_widgets');
+
+        $preview = $this->migrator()->pretend();
+
+        self::assertArrayHasKey('0001_create_widgets', $preview);
+        self::assertCount(1, $preview['0001_create_widgets']);
+        self::assertStringContainsString('CREATE TABLE "widgets"', $preview['0001_create_widgets'][0]['sql']);
+        self::assertTableNotExists('widgets');
+    }
+
+    public function testMigratePretendCommandReturnsZeroWithoutRunningMigration(): void
+    {
+        $this->writeMigration('0001_create_foo', up: 'CREATE TABLE foo (id INTEGER PRIMARY KEY)');
+
+        $code = (new MigrateCommand($this->migrator()))->handle(['--pretend']);
+
+        self::assertSame(0, $code);
+        self::assertTableNotExists('foo');
+        self::assertTableNotExists('migrations');
+    }
+
+    public function testMigrateInProductionCancelsWhenConfirmationIsDeclined(): void
+    {
+        $this->writeMigration('0001_create_foo', up: 'CREATE TABLE foo (id INTEGER PRIMARY KEY)');
+        [$input, $output] = $this->consoleStreams("n\n");
+
+        $code = (new MigrateCommand($this->migrator(), 'production', $input, $output))->handle();
+
+        self::assertSame(1, $code);
+        self::assertStringContainsString('Application is in production.', $this->streamContents($output));
+        self::assertStringContainsString('- 0001_create_foo', $this->streamContents($output));
+        self::assertTableNotExists('foo');
+        self::assertTableNotExists('migrations');
+    }
+
+    public function testMigrateInProductionRunsWhenConfirmationIsAccepted(): void
+    {
+        $this->writeMigration('0001_create_foo', up: 'CREATE TABLE foo (id INTEGER PRIMARY KEY)');
+        [$input, $output] = $this->consoleStreams("yes\n");
+
+        $code = (new MigrateCommand($this->migrator(), 'production', $input, $output))->handle();
+
+        self::assertSame(0, $code);
+        self::assertStringContainsString('Run 1 pending migration in production?', $this->streamContents($output));
+        self::assertTableExists('foo');
+        self::assertContains('0001_create_foo', (new MigrationRepository($this->db))->ran());
+    }
+
+    public function testMigrateInProductionRunsWithForceWithoutPrompt(): void
+    {
+        $this->writeMigration('0001_create_foo', up: 'CREATE TABLE foo (id INTEGER PRIMARY KEY)');
+        [$input, $output] = $this->consoleStreams('');
+
+        $code = (new MigrateCommand($this->migrator(), 'production', $input, $output))->handle(['--force']);
+
+        self::assertSame(0, $code);
+        self::assertStringNotContainsString('Application is in production.', $this->streamContents($output));
+        self::assertTableExists('foo');
     }
 
     // =========================================================================
@@ -437,9 +523,64 @@ final class MigrateCommandsTest extends TestCase
         file_put_contents($this->migDir . '/' . $name . '.php', $code);
     }
 
+    private function writeSchemaMigration(string $name): void
+    {
+        $code = <<<'PHP'
+        <?php
+        use Wayfinder\Database\Blueprint;
+        use Wayfinder\Database\Database;
+        use Wayfinder\Database\Migration;
+        use Wayfinder\Database\Schema;
+
+        return new class implements Migration {
+            public function up(Database $db): void
+            {
+                Schema::create('widgets', function (Blueprint $table): void {
+                    $table->id();
+                    $table->string('name');
+                });
+            }
+
+            public function down(Database $db): void
+            {
+                Schema::dropIfExists('widgets');
+            }
+        };
+        PHP;
+        file_put_contents($this->migDir . '/' . $name . '.php', $code);
+    }
+
     private function writeRawFile(string $filename, string $content): void
     {
         file_put_contents($this->migDir . '/' . $filename, $content);
+    }
+
+    /**
+     * @return array{0: resource, 1: resource}
+     */
+    private function consoleStreams(string $input): array
+    {
+        $inputStream = fopen('php://temp', 'r+');
+        $outputStream = fopen('php://temp', 'r+');
+
+        if ($inputStream === false || $outputStream === false) {
+            throw new \RuntimeException('Unable to create console test streams.');
+        }
+
+        fwrite($inputStream, $input);
+        rewind($inputStream);
+
+        return [$inputStream, $outputStream];
+    }
+
+    /**
+     * @param resource $stream
+     */
+    private function streamContents(mixed $stream): string
+    {
+        rewind($stream);
+
+        return stream_get_contents($stream) ?: '';
     }
 
     private function assertTableExists(string $table): void

@@ -11,6 +11,13 @@ final class Database
 {
     private PDO $pdo;
 
+    private bool $pretending = false;
+
+    /**
+     * @var list<array{sql: string, bindings: list<mixed>}>
+     */
+    private array $pretendStatements = [];
+
     /**
      * @param array{
      *     driver?: string,
@@ -60,6 +67,29 @@ final class Database
         return new QueryBuilder($this, $table);
     }
 
+    /**
+     * Run a callback without executing SQL, returning the statements it attempted.
+     *
+     * @return list<array{sql: string, bindings: list<mixed>}>
+     */
+    public function pretend(callable $callback): array
+    {
+        $wasPretending = $this->pretending;
+        $previousStatements = $this->pretendStatements;
+
+        $this->pretending = true;
+        $this->pretendStatements = [];
+
+        try {
+            $callback();
+
+            return $this->pretendStatements;
+        } finally {
+            $this->pretending = $wasPretending;
+            $this->pretendStatements = $previousStatements;
+        }
+    }
+
     public function select(string $table, string|array $columns = '*'): QueryBuilder
     {
         return $this->table($table)->select($columns);
@@ -107,6 +137,12 @@ final class Database
      */
     public function query(string $sql, array $bindings = []): array
     {
+        if ($this->pretending) {
+            $this->recordPretendStatement($sql, $bindings);
+
+            return [];
+        }
+
         try {
             $statement = $this->pdo->prepare($sql);
             $statement->execute($bindings);
@@ -124,6 +160,12 @@ final class Database
      */
     public function firstResult(string $sql, array $bindings = []): array|false
     {
+        if ($this->pretending) {
+            $this->recordPretendStatement($sql, $bindings);
+
+            return false;
+        }
+
         try {
             $statement = $this->pdo->prepare($sql);
             $statement->execute($bindings);
@@ -141,6 +183,12 @@ final class Database
      */
     public function statement(string $sql, array $bindings = []): int
     {
+        if ($this->pretending) {
+            $this->recordPretendStatement($sql, $bindings);
+
+            return 0;
+        }
+
         try {
             $statement = $this->pdo->prepare($sql);
             $statement->execute($bindings);
@@ -155,6 +203,10 @@ final class Database
 
     public function lastInsertId(): string
     {
+        if ($this->pretending) {
+            return '0';
+        }
+
         return $this->pdo->lastInsertId();
     }
 
@@ -171,6 +223,10 @@ final class Database
      */
     public function transaction(callable $callback): mixed
     {
+        if ($this->pretending) {
+            return $callback();
+        }
+
         $nested = $this->pdo->inTransaction();
 
         if (! $nested) {
@@ -196,21 +252,37 @@ final class Database
 
     public function beginTransaction(): bool
     {
+        if ($this->pretending) {
+            return true;
+        }
+
         return $this->pdo->beginTransaction();
     }
 
     public function commit(): bool
     {
+        if ($this->pretending) {
+            return true;
+        }
+
         return $this->pdo->commit();
     }
 
     public function rollBack(): bool
     {
+        if ($this->pretending) {
+            return true;
+        }
+
         return $this->pdo->rollBack();
     }
 
     public function inTransaction(): bool
     {
+        if ($this->pretending) {
+            return false;
+        }
+
         return $this->pdo->inTransaction();
     }
 
@@ -275,5 +347,16 @@ final class Database
             'sqlite' => sprintf('sqlite:%s', $config['path'] ?? ':memory:'),
             default => throw new \InvalidArgumentException(sprintf('Unsupported database driver [%s].', $driver)),
         };
+    }
+
+    /**
+     * @param list<mixed> $bindings
+     */
+    private function recordPretendStatement(string $sql, array $bindings): void
+    {
+        $this->pretendStatements[] = [
+            'sql' => $sql,
+            'bindings' => $bindings,
+        ];
     }
 }
