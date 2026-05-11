@@ -119,7 +119,7 @@ final class QueryBuilder
 
     public function where(string|callable $column, mixed $operator = null, mixed $value = null): self
     {
-        if (is_callable($column)) {
+        if (! is_string($column) && is_callable($column)) {
             return $this->whereNested($column, 'and');
         }
 
