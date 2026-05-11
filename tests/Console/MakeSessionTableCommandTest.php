@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Wayfinder\Tests\Console;
 
 use PHPUnit\Framework\TestCase;
+use Wayfinder\Console\MakeFailedJobsTableCommand;
 use Wayfinder\Console\MakeQueueTableCommand;
 use Wayfinder\Console\MakeSessionTableCommand;
 use Wayfinder\Tests\Concerns\UsesTempDirectory;
@@ -84,5 +85,21 @@ final class MakeSessionTableCommandTest extends TestCase
         ob_end_clean();
 
         self::assertSame(1, $exit);
+    }
+
+    public function testCreatesFailedJobsTableMigration(): void
+    {
+        $command = new MakeFailedJobsTableCommand($this->tempDir . '/migrations');
+
+        $exit = $command->handle();
+
+        self::assertSame(0, $exit);
+
+        $files = glob($this->tempDir . '/migrations/*_create_failed_jobs_table.php') ?: [];
+        self::assertCount(1, $files);
+
+        $contents = (string) file_get_contents($files[0]);
+        self::assertStringContainsString('CREATE TABLE failed_jobs', $contents);
+        self::assertStringContainsString('exception TEXT NOT NULL', $contents);
     }
 }

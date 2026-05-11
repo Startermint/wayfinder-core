@@ -6,6 +6,8 @@ use Wayfinder\Database\DB;
 use Wayfinder\Database\Database;
 use Wayfinder\Contracts\Htmlable;
 use Wayfinder\Routing\UrlGenerator;
+use Wayfinder\Contracts\Queue\QueueBus;
+use Wayfinder\Queue\Queue;
 use Wayfinder\Support\Events;
 use Wayfinder\Support\PathResolver;
 
@@ -20,6 +22,13 @@ if (! function_exists('db')) {
     function db(?string $name = null): Database
     {
         return DB::connection($name);
+    }
+}
+
+if (! function_exists('queue')) {
+    function queue(?string $connection = null): QueueBus
+    {
+        return Queue::bus($connection);
     }
 }
 
