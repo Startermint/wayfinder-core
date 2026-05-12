@@ -13,6 +13,7 @@ use Wayfinder\Database\Database;
 use Wayfinder\Health\Checks\AppConfigHealthCheck;
 use Wayfinder\Health\Checks\CacheHealthCheck;
 use Wayfinder\Health\Checks\DatabaseHealthCheck;
+use Wayfinder\Health\Checks\DatabaseTablesHealthCheck;
 use Wayfinder\Health\Checks\StorageHealthCheck;
 use Wayfinder\Health\HealthCheck;
 use Wayfinder\Health\HealthReport;
@@ -64,11 +65,13 @@ final class HealthTest extends TestCase
     public function testBuiltInDatabaseCacheAndStorageChecksPass(): void
     {
         $database = new Database(['driver' => 'sqlite', 'path' => ':memory:']);
+        $database->statement('CREATE TABLE users (id INTEGER PRIMARY KEY AUTOINCREMENT)');
         $cache = new FileCache($this->tempDir . '/cache');
         $disk = new Filesystem(new LocalFilesystemAdapter($this->tempDir . '/storage'));
 
         $report = (new HealthRunner([
             new DatabaseHealthCheck($database),
+            new DatabaseTablesHealthCheck($database, ['users']),
             new CacheHealthCheck($cache),
             new StorageHealthCheck($disk),
             new AppConfigHealthCheck(new Config([

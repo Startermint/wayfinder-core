@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Wayfinder\Health\Checks;
 
 use Wayfinder\Database\Database;
-use Wayfinder\Database\Schema;
+use Wayfinder\Database\SchemaGrammar;
 use Wayfinder\Health\HealthCheck;
 use Wayfinder\Health\HealthResult;
 
@@ -30,10 +30,11 @@ final readonly class DatabaseTablesHealthCheck implements HealthCheck
     {
         $missing = [];
 
-        Schema::setResolver(fn (): Database => $this->database);
-
         foreach ($this->tables as $table) {
-            if (! Schema::hasTable($table)) {
+            [$sql, $bindings] = (new SchemaGrammar($this->database->driver()))->compileHasTable($table);
+            $result = $this->database->query($sql, $bindings);
+
+            if ((int) ($result[0]['count'] ?? 0) < 1) {
                 $missing[] = $table;
             }
         }
