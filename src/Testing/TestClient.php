@@ -63,6 +63,8 @@ final class TestClient
     public function request(string $method, string $uri, array $data = [], array $headers = []): TestResponse
     {
         [$path, $query] = $this->parseUri($uri);
+        $headers = $this->normalizeHeaders([...$this->defaultHeaders(), ...$this->headers, ...$headers]);
+        $host = $headers['host'] ?? 'localhost';
 
         $request = new Request(
             strtoupper($method),
@@ -75,8 +77,9 @@ final class TestClient
                 'REQUEST_METHOD' => strtoupper($method),
                 'REQUEST_URI' => $uri,
                 'SCRIPT_NAME' => '/index.php',
+                'HTTP_HOST' => $host,
             ],
-            $this->normalizeHeaders([...$this->headers, ...$headers]),
+            $headers,
             '',
         );
 
@@ -163,6 +166,27 @@ final class TestClient
         }
 
         return $normalized;
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    private function defaultHeaders(): array
+    {
+        $appUrl = null;
+
+        if ($this->container !== null) {
+            $config = $this->container->get(Config::class);
+            if ($config instanceof Config) {
+                $appUrl = $config->get('app.url');
+            }
+        }
+
+        $host = is_string($appUrl) ? parse_url($appUrl, PHP_URL_HOST) : null;
+
+        return [
+            'Host' => is_string($host) && $host !== '' ? $host : 'localhost',
+        ];
     }
 
     private function storeResponseCookies(Response $response): void
