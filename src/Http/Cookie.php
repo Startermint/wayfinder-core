@@ -14,9 +14,16 @@ final class Cookie
         private readonly string $domain = '',
         private readonly bool $secure = false,
         private readonly bool $httpOnly = true,
-        private readonly string $sameSite = 'Lax',
+        string $sameSite = 'Lax',
     ) {
+        $this->sameSite = $this->normalizeSameSite($sameSite);
+
+        if ($this->sameSite === 'None' && ! $this->secure) {
+            throw new \InvalidArgumentException('Cookies using SameSite=None must also be Secure.');
+        }
     }
+
+    private readonly string $sameSite;
 
     public static function make(
         string $name,
@@ -82,5 +89,17 @@ final class Cookie
     public function send(): void
     {
         setcookie($this->name, $this->value, $this->options());
+    }
+
+    private function normalizeSameSite(string $sameSite): string
+    {
+        $sameSite = strtolower(trim($sameSite));
+
+        return match ($sameSite) {
+            'lax' => 'Lax',
+            'strict' => 'Strict',
+            'none' => 'None',
+            default => throw new \InvalidArgumentException(sprintf('Unsupported SameSite cookie value [%s].', $sameSite)),
+        };
     }
 }

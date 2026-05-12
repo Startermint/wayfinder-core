@@ -111,6 +111,23 @@ final class AppKernelTest extends TestCase
         self::assertStringNotContainsString('Secret error details', $response->content());
     }
 
+    public function testNonDebugJsonExceptionHidesDetails(): void
+    {
+        $router = $this->makeRouter();
+        $router->get('/boom', static function (): never {
+            throw new \RuntimeException('Secret error details');
+        });
+        $kernel = $this->makeKernel($router, debug: false);
+
+        $response = $kernel->handle($this->jsonRequest('GET', '/boom'));
+        $payload = json_decode($response->content(), true);
+
+        self::assertSame(500, $response->status());
+        self::assertIsArray($payload);
+        self::assertSame('Internal Server Error', $payload['message'] ?? null);
+        self::assertStringNotContainsString('Secret error details', $response->content());
+    }
+
     // -------------------------------------------------------------------------
     // ValidationException — JSON path
     // -------------------------------------------------------------------------

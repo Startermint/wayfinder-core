@@ -13,6 +13,9 @@ class Request
 {
     private readonly SymfonyRequest $symfony;
 
+    /** @var array<string, string> */
+    private readonly array $headers;
+
     /**
      * @param array<string, mixed> $query
      * @param array<string, mixed> $request
@@ -30,12 +33,13 @@ class Request
         private readonly array $cookies,
         private readonly array $files,
         private readonly array $server,
-        private readonly array $headers,
+        array $headers,
         private readonly string $body,
         private readonly array $routeParams = [],
         private readonly ?Session $session = null,
         ?SymfonyRequest $symfony = null,
     ) {
+        $this->headers = self::normalizeHeaderMap($headers);
         $this->symfony = $symfony ?? self::makeSymfonyRequest(
             $method,
             $path,
@@ -44,7 +48,7 @@ class Request
             $cookies,
             $files,
             $server,
-            $headers,
+            $this->headers,
             $body,
         );
     }
@@ -510,6 +514,23 @@ class Request
 
             if ($value !== '') {
                 $normalized[strtolower($name)] = $value;
+            }
+        }
+
+        return $normalized;
+    }
+
+    /**
+     * @param array<string, string> $headers
+     * @return array<string, string>
+     */
+    private static function normalizeHeaderMap(array $headers): array
+    {
+        $normalized = [];
+
+        foreach ($headers as $name => $value) {
+            if (is_scalar($value) && (string) $value !== '') {
+                $normalized[strtolower((string) $name)] = (string) $value;
             }
         }
 

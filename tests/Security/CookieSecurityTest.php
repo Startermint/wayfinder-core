@@ -69,7 +69,7 @@ final class CookieSecurityTest extends TestCase
 
     public function testCookieSameSiteNone(): void
     {
-        $cookie = Cookie::make('sess', 'abc123', sameSite: 'None');
+        $cookie = Cookie::make('sess', 'abc123', secure: true, sameSite: 'None');
         self::assertSame('None', $cookie->options()['samesite']);
     }
 

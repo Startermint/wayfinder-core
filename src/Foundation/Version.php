@@ -6,5 +6,5 @@ namespace Wayfinder\Foundation;
 
 final class Version
 {
-    public const VALUE = '0.0.9';
+    public const VALUE = '0.0.10';
 }

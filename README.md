@@ -65,6 +65,12 @@ Wayfinder's request and response API is backed by Symfony HttpFoundation while k
 
 See `docs/http.md`.
 
+## Security
+
+Wayfinder includes opt-in hardening primitives for trusted proxies, host validation, secure browser headers, safe redirects, CSRF protection, and strict cookie metadata.
+
+See `docs/security.md`.
+
 ## Dates
 
 Wayfinder uses Carbon for date/time handling. Prefer `Wayfinder\Support\Date`, which returns immutable Carbon dates and supports test clocks through `Wayfinder\Support\Clock`.

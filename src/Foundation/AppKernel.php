@@ -71,6 +71,16 @@ final class AppKernel
         }
 
         if ($this->debug) {
+            if ($request->expectsJson()) {
+                return Response::json([
+                    'message' => $throwable->getMessage(),
+                    'exception' => $throwable::class,
+                    'file' => $throwable->getFile(),
+                    'line' => $throwable->getLine(),
+                    'trace' => $throwable->getTraceAsString(),
+                ], 500);
+            }
+
             return Response::text(
                 "Internal Server Error\n"
                 . sprintf("Exception: %s\n", $throwable::class)
@@ -79,6 +89,12 @@ final class AppKernel
                 . $throwable->getTraceAsString() . "\n",
                 500,
             );
+        }
+
+        if ($request->expectsJson()) {
+            return Response::json([
+                'message' => 'Internal Server Error',
+            ], 500);
         }
 
         return Response::text('Internal Server Error', 500);
