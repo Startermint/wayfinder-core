@@ -4,9 +4,11 @@ declare(strict_types=1);
 
 namespace Wayfinder\Validation;
 
+use Carbon\CarbonImmutable;
 use Wayfinder\Database\DB;
 use Wayfinder\Http\Request;
 use Wayfinder\Http\ValidationException;
+use Wayfinder\Support\Date;
 
 final class Validator
 {
@@ -302,8 +304,8 @@ final class Validator
      */
     private function validateDateComparison(string $field, mixed $value, string $ruleName, array $parameters): void
     {
-        $actual = $this->timestamp($value);
-        $compare = $this->timestamp($this->comparisonValue($parameters[0] ?? ''));
+        $actual = $this->dateValue($value);
+        $compare = $this->dateValue($this->comparisonValue($parameters[0] ?? ''));
 
         if ($actual === null || $compare === null) {
             $this->addError($field, $ruleName, 'This field must be a valid date.');
@@ -311,10 +313,10 @@ final class Validator
         }
 
         $failed = match ($ruleName) {
-            'before' => $actual >= $compare,
-            'before_or_equal' => $actual > $compare,
-            'after' => $actual <= $compare,
-            'after_or_equal' => $actual < $compare,
+            'before' => $actual->greaterThanOrEqualTo($compare),
+            'before_or_equal' => $actual->greaterThan($compare),
+            'after' => $actual->lessThanOrEqualTo($compare),
+            'after_or_equal' => $actual->lessThan($compare),
             default => false,
         };
 
@@ -534,18 +536,12 @@ final class Validator
 
     private function isDate(mixed $value): bool
     {
-        return is_string($value) && strtotime($value) !== false;
+        return Date::tryParse($value) !== null;
     }
 
-    private function timestamp(mixed $value): ?int
+    private function dateValue(mixed $value): ?CarbonImmutable
     {
-        if (! is_scalar($value)) {
-            return null;
-        }
-
-        $timestamp = strtotime((string) $value);
-
-        return $timestamp === false ? null : $timestamp;
+        return Date::tryParse($value);
     }
 
     private function isJson(string $value): bool

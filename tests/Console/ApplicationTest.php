@@ -146,6 +146,44 @@ final class ApplicationTest extends TestCase
         self::assertSame($app, $result);
     }
 
+    public function testLazyCommandIsOnlyConstructedWhenRun(): void
+    {
+        $constructed = 0;
+
+        ['stdout' => $out] = $this->execute(['wayfinder', 'list'], lazyCommands: [
+            ['lazy:ping', 'Lazy ping', static function () use (&$constructed): Command {
+                $constructed++;
+
+                return new FakeCommand('lazy:ping', 'Lazy ping');
+            }],
+        ]);
+
+        self::assertSame(0, $constructed);
+        self::assertStringContainsString('lazy:ping', $out);
+        self::assertStringContainsString('Lazy ping', $out);
+
+        ['code' => $code] = $this->execute(['wayfinder', 'lazy:ping'], lazyCommands: [
+            ['lazy:ping', 'Lazy ping', static function () use (&$constructed): Command {
+                $constructed++;
+
+                return new FakeCommand('lazy:ping', 'Lazy ping');
+            }],
+        ]);
+
+        self::assertSame(0, $code);
+        self::assertSame(1, $constructed);
+    }
+
+    public function testLazyCommandFactoryMustResolveMatchingCommandName(): void
+    {
+        ['code' => $code, 'stderr' => $err] = $this->execute(['wayfinder', 'expected'], lazyCommands: [
+            ['expected', 'Expected command', static fn (): Command => new FakeCommand('actual', 'Actual command')],
+        ]);
+
+        self::assertSame(1, $code);
+        self::assertStringContainsString('Lazy command [expected] resolved command [actual].', $err);
+    }
+
     // -------------------------------------------------------------------------
     // Multiple commands registered
     // -------------------------------------------------------------------------
@@ -173,9 +211,10 @@ final class ApplicationTest extends TestCase
      *
      * @param list<string>  $argv
      * @param list<Command> $commands
+     * @param list<array{0: string, 1: string, 2: callable(): Command}> $lazyCommands
      * @return array{code: int, stdout: string, stderr: string}
      */
-    private function execute(array $argv, array $commands = []): array
+    private function execute(array $argv, array $commands = [], array $lazyCommands = []): array
     {
         $stdout = fopen('php://memory', 'r+');
         $stderr = fopen('php://memory', 'r+');
@@ -184,6 +223,10 @@ final class ApplicationTest extends TestCase
 
         foreach ($commands as $command) {
             $app->add($command);
+        }
+
+        foreach ($lazyCommands as [$name, $description, $factory]) {
+            $app->addLazy($name, $description, $factory);
         }
 
         $code = $app->run($argv);

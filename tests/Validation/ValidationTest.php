@@ -559,6 +559,21 @@ final class ValidationTest extends TestCase
         $this->assertValidationFails(['end' => 'date|after:start'], ['start' => '2026-05-10', 'end' => '2026-05-01'], 'end');
     }
 
+    public function testDateComparisonRulesRespectTimezoneOffsets(): void
+    {
+        $validated = $this->validate(
+            ['starts_at' => 'date|after:2026-05-12T12:00:00+00:00'],
+            ['starts_at' => '2026-05-12T09:00:00-04:00'],
+        );
+
+        self::assertSame('2026-05-12T09:00:00-04:00', $validated['starts_at']);
+        $this->assertValidationFails(
+            ['starts_at' => 'date|after:2026-05-12T12:00:00+00:00'],
+            ['starts_at' => '2026-05-12T07:00:00-04:00'],
+            'starts_at',
+        );
+    }
+
     public function testWildcardArrayRulesValidateNestedValuesAndMissingRequiredKeys(): void
     {
         $validated = $this->validate(

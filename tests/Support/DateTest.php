@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Wayfinder\Tests\Support;
 
+use Carbon\CarbonImmutable;
 use DateTimeImmutable;
 use DateTimeZone;
 use PHPUnit\Framework\TestCase;
@@ -18,7 +19,11 @@ final class DateTest extends TestCase
         $frozen = new DateTimeImmutable('2026-04-28 09:30:00', new DateTimeZone('America/New_York'));
         $clock = new FrozenClock($frozen);
 
-        self::assertSame($frozen, Date::now($clock));
+        $now = Date::now($clock);
+
+        self::assertInstanceOf(CarbonImmutable::class, $now);
+        self::assertSame($frozen->format('Y-m-d H:i:s'), $now->format('Y-m-d H:i:s'));
+        self::assertSame('America/New_York', $now->getTimezone()->getName());
     }
 
     public function testTodayReturnsStartOfDayFromClock(): void
@@ -31,10 +36,18 @@ final class DateTest extends TestCase
         self::assertSame('UTC', $today->getTimezone()->getName());
     }
 
+    public function testNowKeepsLegacyNullableClockTimezoneArgument(): void
+    {
+        $now = Date::now(null, new DateTimeZone('America/New_York'));
+
+        self::assertSame('America/New_York', $now->getTimezone()->getName());
+    }
+
     public function testParseUsesExplicitTimezoneWhenProvided(): void
     {
         $parsed = Date::parse('2026-04-28 12:00:00', new DateTimeZone('America/Chicago'));
 
+        self::assertInstanceOf(CarbonImmutable::class, $parsed);
         self::assertSame('America/Chicago', $parsed->getTimezone()->getName());
         self::assertSame('2026-04-28 12:00:00', $parsed->format('Y-m-d H:i:s'));
     }
@@ -43,8 +56,15 @@ final class DateTest extends TestCase
     {
         $date = Date::fromTimestamp(0, new DateTimeZone('America/New_York'));
 
+        self::assertInstanceOf(CarbonImmutable::class, $date);
         self::assertSame('America/New_York', $date->getTimezone()->getName());
         self::assertSame('1969-12-31 19:00:00', $date->format('Y-m-d H:i:s'));
+    }
+
+    public function testTryParseReturnsNullForInvalidValues(): void
+    {
+        self::assertNull(Date::tryParse([]));
+        self::assertNull(Date::tryParse('not-a-real-date-value-%%%'));
     }
 
     public function testToUtcConvertsMutableDateTimeToImmutableUtc(): void

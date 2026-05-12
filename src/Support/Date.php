@@ -4,68 +4,94 @@ declare(strict_types=1);
 
 namespace Wayfinder\Support;
 
-use DateInterval;
-use DateTimeImmutable;
+use Carbon\CarbonImmutable;
 use DateTimeInterface;
 use DateTimeZone;
 
 final class Date
 {
-    public static function now(?Clock $clock = null, ?DateTimeZone $timezone = null): DateTimeImmutable
+    public static function now(Clock|DateTimeZone|string|null $clockOrTimezone = null, DateTimeZone|string|null $timezone = null): CarbonImmutable
     {
-        return ($clock ?? new SystemClock())->now($timezone);
-    }
-
-    public static function today(?Clock $clock = null, ?DateTimeZone $timezone = null): DateTimeImmutable
-    {
-        return self::now($clock, $timezone)->setTime(0, 0, 0);
-    }
-
-    public static function parse(string $value, ?DateTimeZone $timezone = null): DateTimeImmutable
-    {
-        if ($timezone !== null) {
-            return new DateTimeImmutable($value, $timezone);
+        if ($clockOrTimezone instanceof Clock) {
+            return self::parse($clockOrTimezone->now(self::timezone($timezone)));
         }
 
-        return new DateTimeImmutable($value);
+        return CarbonImmutable::now($timezone ?? $clockOrTimezone);
     }
 
-    public static function fromTimestamp(int $timestamp, ?DateTimeZone $timezone = null): DateTimeImmutable
+    public static function today(Clock|DateTimeZone|string|null $clockOrTimezone = null, DateTimeZone|string|null $timezone = null): CarbonImmutable
     {
-        $date = new DateTimeImmutable('@' . $timestamp);
-
-        return $date->setTimezone($timezone ?? new DateTimeZone(date_default_timezone_get()));
+        return self::now($clockOrTimezone, $timezone)->startOfDay();
     }
 
-    public static function toUtc(DateTimeInterface $date): DateTimeImmutable
+    public static function yesterday(DateTimeZone|string|null $timezone = null): CarbonImmutable
     {
-        return self::immutable($date)->setTimezone(new DateTimeZone('UTC'));
+        return self::today($timezone)->subDay();
     }
 
-    public static function startOfDay(DateTimeInterface $date): DateTimeImmutable
+    public static function tomorrow(DateTimeZone|string|null $timezone = null): CarbonImmutable
     {
-        return self::immutable($date)->setTime(0, 0, 0);
+        return self::today($timezone)->addDay();
     }
 
-    public static function endOfDay(DateTimeInterface $date): DateTimeImmutable
+    public static function parse(string|DateTimeInterface $value, DateTimeZone|string|null $timezone = null): CarbonImmutable
     {
-        return self::immutable($date)->setTime(23, 59, 59, 999999);
+        if ($value instanceof DateTimeInterface) {
+            return CarbonImmutable::instance($value)->setTimezone(self::timezone($timezone) ?? $value->getTimezone());
+        }
+
+        return CarbonImmutable::parse($value, $timezone);
     }
 
-    public static function addDays(DateTimeInterface $date, int $days): DateTimeImmutable
+    public static function tryParse(mixed $value, DateTimeZone|string|null $timezone = null): ?CarbonImmutable
     {
-        return self::immutable($date)->add(new DateInterval('P' . $days . 'D'));
+        if (! is_string($value) && ! $value instanceof DateTimeInterface) {
+            return null;
+        }
+
+        try {
+            return self::parse($value, $timezone);
+        } catch (\Throwable) {
+            return null;
+        }
     }
 
-    public static function subDays(DateTimeInterface $date, int $days): DateTimeImmutable
+    public static function fromTimestamp(int $timestamp, DateTimeZone|string|null $timezone = null): CarbonImmutable
     {
-        return self::immutable($date)->sub(new DateInterval('P' . $days . 'D'));
+        return CarbonImmutable::createFromTimestamp($timestamp, $timezone);
     }
 
-    private static function immutable(DateTimeInterface $date): DateTimeImmutable
+    public static function toUtc(DateTimeInterface $value): CarbonImmutable
     {
-        return $date instanceof DateTimeImmutable
-            ? $date
-            : DateTimeImmutable::createFromInterface($date);
+        return self::parse($value, 'UTC');
+    }
+
+    public static function startOfDay(DateTimeInterface $value): CarbonImmutable
+    {
+        return self::parse($value)->startOfDay();
+    }
+
+    public static function endOfDay(DateTimeInterface $value): CarbonImmutable
+    {
+        return self::parse($value)->endOfDay();
+    }
+
+    public static function addDays(DateTimeInterface $value, int $days): CarbonImmutable
+    {
+        return self::parse($value)->addDays($days);
+    }
+
+    public static function subDays(DateTimeInterface $value, int $days): CarbonImmutable
+    {
+        return self::parse($value)->subDays($days);
+    }
+
+    private static function timezone(DateTimeZone|string|null $timezone): ?DateTimeZone
+    {
+        if ($timezone === null || $timezone instanceof DateTimeZone) {
+            return $timezone;
+        }
+
+        return new DateTimeZone($timezone);
     }
 }
