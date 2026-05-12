@@ -4,6 +4,9 @@ declare(strict_types=1);
 
 namespace Wayfinder\Http;
 
+use Symfony\Component\HttpFoundation\Cookie as SymfonyCookie;
+use Symfony\Component\HttpFoundation\Response as SymfonyResponse;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 use Wayfinder\Session\Session;
 
 final class Response
@@ -158,24 +161,36 @@ final class Response
         return $this;
     }
 
-    public function send(): void
+    public function toSymfonyResponse(): SymfonyResponse
     {
-        http_response_code($this->status);
-
-        foreach ($this->headers as $name => $value) {
-            header(sprintf('%s: %s', $name, $value));
-        }
+        $response = is_string($this->content)
+            ? new SymfonyResponse($this->content, $this->status, $this->headers)
+            : new StreamedResponse($this->content, $this->status, $this->headers);
 
         foreach ($this->cookies as $cookie) {
-            $cookie->send();
+            $response->headers->setCookie(new SymfonyCookie(
+                $cookie->name(),
+                $cookie->value(),
+                $cookie->expires() > 0 ? $cookie->expires() : 0,
+                $cookie->options()['path'],
+                $cookie->options()['domain'] !== '' ? $cookie->options()['domain'] : null,
+                $cookie->options()['secure'],
+                $cookie->options()['httponly'],
+                false,
+                $cookie->options()['samesite'],
+            ));
         }
 
-        if (is_string($this->content)) {
-            echo $this->content;
+        return $response;
+    }
 
-            return;
-        }
+    public function symfony(): SymfonyResponse
+    {
+        return $this->toSymfonyResponse();
+    }
 
-        ($this->content)();
+    public function send(): void
+    {
+        $this->toSymfonyResponse()->send();
     }
 }

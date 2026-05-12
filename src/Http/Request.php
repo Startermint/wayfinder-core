@@ -4,11 +4,15 @@ declare(strict_types=1);
 
 namespace Wayfinder\Http;
 
+use Symfony\Component\HttpFoundation\File\UploadedFile;
+use Symfony\Component\HttpFoundation\Request as SymfonyRequest;
 use Wayfinder\Session\Session;
 use Wayfinder\Validation\Validator;
 
 class Request
 {
+    private readonly SymfonyRequest $symfony;
+
     /**
      * @param array<string, mixed> $query
      * @param array<string, mixed> $request
@@ -30,23 +34,40 @@ class Request
         private readonly string $body,
         private readonly array $routeParams = [],
         private readonly ?Session $session = null,
+        ?SymfonyRequest $symfony = null,
     ) {
+        $this->symfony = $symfony ?? self::makeSymfonyRequest(
+            $method,
+            $path,
+            $query,
+            $request,
+            $cookies,
+            $files,
+            $server,
+            $headers,
+            $body,
+        );
     }
 
     public static function fromGlobals(): self
     {
-        $uriPath = parse_url($_SERVER['REQUEST_URI'] ?? '/', PHP_URL_PATH);
+        return self::fromSymfony(SymfonyRequest::createFromGlobals());
+    }
 
+    public static function fromSymfony(SymfonyRequest $request): self
+    {
         return new self(
-            method: strtoupper($_SERVER['REQUEST_METHOD'] ?? 'GET'),
-            path: is_string($uriPath) && $uriPath !== '' ? $uriPath : '/',
-            query: $_GET,
-            request: $_POST,
-            cookies: $_COOKIE,
-            files: $_FILES,
-            server: $_SERVER,
-            headers: self::headersFromServer($_SERVER),
-            body: file_get_contents('php://input') ?: '',
+            method: strtoupper($request->getMethod()),
+            path: $request->getPathInfo() !== '' ? $request->getPathInfo() : '/',
+            query: $request->query->all(),
+            request: self::payloadFromSymfony($request),
+            cookies: $request->cookies->all(),
+            files: self::normalizeFiles($request->files->all()),
+            server: $request->server->all(),
+            headers: self::normalizeHeaders($request->headers->all()),
+            body: $request->getContent(),
+            routeParams: self::normalizeRouteParams($request->attributes->all()),
+            symfony: $request,
         );
     }
 
@@ -135,6 +156,16 @@ class Request
         return $this->body;
     }
 
+    public function toSymfonyRequest(): SymfonyRequest
+    {
+        return $this->symfony;
+    }
+
+    public function symfony(): SymfonyRequest
+    {
+        return $this->symfony;
+    }
+
     public function expectsJson(): bool
     {
         $accept = $this->header('accept', '');
@@ -168,6 +199,15 @@ class Request
      */
     public function withRouteParams(array $params): static
     {
+        $symfony = $this->symfony->duplicate(
+            null,
+            null,
+            $params,
+            null,
+            null,
+            null,
+        );
+
         return new static(
             $this->method,
             $this->path,
@@ -180,6 +220,7 @@ class Request
             $this->body,
             $params,
             $this->session,
+            $symfony,
         );
     }
 
@@ -211,6 +252,7 @@ class Request
             $this->body,
             $this->routeParams,
             $session,
+            $this->symfony,
         );
     }
 
@@ -379,5 +421,156 @@ class Request
         }
 
         return $headers;
+    }
+
+    /**
+     * @param array<string, mixed> $query
+     * @param array<string, mixed> $request
+     * @param array<string, mixed> $cookies
+     * @param array<string, mixed> $files
+     * @param array<string, mixed> $server
+     * @param array<string, string> $headers
+     */
+    private static function makeSymfonyRequest(
+        string $method,
+        string $path,
+        array $query,
+        array $request,
+        array $cookies,
+        array $files,
+        array $server,
+        array $headers,
+        string $body,
+    ): SymfonyRequest {
+        $server = [
+            ...$server,
+            'REQUEST_METHOD' => strtoupper($method),
+            'REQUEST_URI' => $path,
+        ];
+
+        foreach ($headers as $name => $value) {
+            $server[self::serverHeaderName($name)] = $value;
+        }
+
+        try {
+            return SymfonyRequest::create(
+                $path,
+                strtoupper($method),
+                $request,
+                $cookies,
+                $files,
+                $server,
+                $body,
+            )->duplicate($query, $request, null, $cookies, $files, $server);
+        } catch (\Throwable) {
+            return SymfonyRequest::create(
+                $path,
+                strtoupper($method),
+                $request,
+                $cookies,
+                [],
+                $server,
+                $body,
+            )->duplicate($query, $request, null, $cookies, [], $server);
+        }
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function payloadFromSymfony(SymfonyRequest $request): array
+    {
+        if ($request->request->count() > 0) {
+            return $request->request->all();
+        }
+
+        if (! str_contains((string) $request->headers->get('content-type', ''), 'json')) {
+            return [];
+        }
+
+        try {
+            $payload = $request->toArray();
+        } catch (\JsonException) {
+            return [];
+        }
+
+        return is_array($payload) ? $payload : [];
+    }
+
+    /**
+     * @param array<string, list<string|null>> $headers
+     * @return array<string, string>
+     */
+    private static function normalizeHeaders(array $headers): array
+    {
+        $normalized = [];
+
+        foreach ($headers as $name => $values) {
+            $value = implode(', ', array_filter($values, static fn (mixed $value): bool => is_scalar($value)));
+
+            if ($value !== '') {
+                $normalized[strtolower($name)] = $value;
+            }
+        }
+
+        return $normalized;
+    }
+
+    /**
+     * @param array<string, mixed> $attributes
+     * @return array<string, string>
+     */
+    private static function normalizeRouteParams(array $attributes): array
+    {
+        $params = [];
+
+        foreach ($attributes as $key => $value) {
+            if (is_scalar($value)) {
+                $params[$key] = (string) $value;
+            }
+        }
+
+        return $params;
+    }
+
+    private static function serverHeaderName(string $name): string
+    {
+        $normalized = strtoupper(str_replace('-', '_', $name));
+
+        return in_array($normalized, ['CONTENT_TYPE', 'CONTENT_LENGTH'], true)
+            ? $normalized
+            : 'HTTP_' . $normalized;
+    }
+
+    /**
+     * @param array<string, mixed> $files
+     * @return array<string, mixed>
+     */
+    private static function normalizeFiles(array $files): array
+    {
+        $normalized = [];
+
+        foreach ($files as $key => $file) {
+            if ($file instanceof UploadedFile) {
+                $normalized[$key] = [
+                    'name' => $file->getClientOriginalName(),
+                    'type' => $file->getClientMimeType(),
+                    'tmp_name' => $file->getPathname(),
+                    'error' => $file->getError(),
+                    'size' => $file->getSize() ?: 0,
+                ];
+
+                continue;
+            }
+
+            if (is_array($file)) {
+                $normalized[$key] = self::normalizeFiles($file);
+                continue;
+            }
+
+            $normalized[$key] = $file;
+        }
+
+        return $normalized;
     }
 }
