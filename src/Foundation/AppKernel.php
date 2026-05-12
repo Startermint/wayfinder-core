@@ -48,6 +48,7 @@ final class AppKernel
             'trace' => $throwable->getTraceAsString(),
             'path' => $request->path(),
             'method' => $request->method(),
+            'request_id' => $request->header('x-request-id'),
         ]);
 
         if ($throwable instanceof ValidationException) {

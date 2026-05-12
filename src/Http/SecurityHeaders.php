@@ -9,7 +9,7 @@ use Wayfinder\Contracts\Middleware;
 final class SecurityHeaders implements Middleware
 {
     /**
-     * @param array<string, string> $headers
+     * @param array<string, string|bool|null> $headers
      */
     public function __construct(
         private readonly array $headers = [],
@@ -34,12 +34,16 @@ final class SecurityHeaders implements Middleware
      */
     private function defaults(): array
     {
-        return [
+        $headers = [
             'X-Content-Type-Options' => $this->headers['X-Content-Type-Options'] ?? 'nosniff',
             'X-Frame-Options' => $this->headers['X-Frame-Options'] ?? 'SAMEORIGIN',
             'Referrer-Policy' => $this->headers['Referrer-Policy'] ?? 'strict-origin-when-cross-origin',
             'Permissions-Policy' => $this->headers['Permissions-Policy'] ?? 'geolocation=(), microphone=(), camera=()',
+            'Strict-Transport-Security' => $this->headers['Strict-Transport-Security'] ?? null,
+            'Content-Security-Policy' => $this->headers['Content-Security-Policy'] ?? null,
         ];
+
+        return array_filter($headers, static fn (mixed $value): bool => is_string($value) && $value !== '');
     }
 
     private function hasHeader(Response $response, string $name): bool

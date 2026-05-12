@@ -56,6 +56,10 @@ final class LogManager
         }
 
         $logger = new Monolog($channel);
+        $logger->pushProcessor(new SensitiveContextProcessor(
+            $this->sensitiveKeys(),
+            (string) ($this->config['redaction_replacement'] ?? '[redacted]'),
+        ));
         $logger->pushHandler(match ($driver) {
             'single', 'file' => $this->singleHandler($config),
             'daily' => $this->dailyHandler($config),
@@ -139,5 +143,15 @@ final class LogManager
         }
 
         return Level::fromName($level);
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function sensitiveKeys(): array
+    {
+        $keys = $this->config['sensitive_keys'] ?? [];
+
+        return is_array($keys) ? array_values(array_filter($keys, 'is_string')) : [];
     }
 }

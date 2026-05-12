@@ -7,6 +7,7 @@ namespace Wayfinder\Tests\Http;
 use PHPUnit\Framework\TestCase;
 use Wayfinder\Http\Cookie;
 use Wayfinder\Http\Request;
+use Wayfinder\Http\RequestId;
 use Wayfinder\Http\Response;
 use Wayfinder\Http\SecurityHeaders;
 use Wayfinder\Http\ValidateHost;
@@ -37,6 +38,20 @@ final class SecurityHardeningTest extends TestCase
         );
 
         self::assertSame('DENY', $response->headers()['X-Frame-Options'] ?? null);
+    }
+
+    public function testSecurityHeadersCanAddStrictTransportSecurityAndCsp(): void
+    {
+        $response = (new SecurityHeaders([
+            'Strict-Transport-Security' => 'max-age=31536000; includeSubDomains',
+            'Content-Security-Policy' => "default-src 'self'",
+        ]))->handle(
+            $this->makeRequest(),
+            static fn (Request $request): Response => Response::html('OK'),
+        );
+
+        self::assertSame('max-age=31536000; includeSubDomains', $response->headers()['Strict-Transport-Security'] ?? null);
+        self::assertSame("default-src 'self'", $response->headers()['Content-Security-Policy'] ?? null);
     }
 
     public function testValidateHostAllowsConfiguredHostAndStripsPort(): void
@@ -90,5 +105,25 @@ final class SecurityHardeningTest extends TestCase
         $cookie = Cookie::make('session', 'value', secure: true, sameSite: 'None');
 
         self::assertSame('None', $cookie->options()['samesite']);
+    }
+
+    public function testRequestIdPropagatesIncomingRequestId(): void
+    {
+        $response = (new RequestId())->handle(
+            $this->makeRequest(headers: ['X-Request-Id' => 'req_12345678']),
+            static fn (Request $request): Response => Response::text('OK'),
+        );
+
+        self::assertSame('req_12345678', $response->headers()['X-Request-Id'] ?? null);
+    }
+
+    public function testRequestIdGeneratesSafeRequestIdWhenMissing(): void
+    {
+        $response = (new RequestId())->handle(
+            $this->makeRequest(),
+            static fn (Request $request): Response => Response::text('OK'),
+        );
+
+        self::assertMatchesRegularExpression('/^[a-f0-9]{32}$/', $response->headers()['X-Request-Id'] ?? '');
     }
 }

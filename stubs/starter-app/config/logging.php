@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 return [
     'default' => $_ENV['LOG_CHANNEL'] ?? 'single',
+    'sensitive_keys' => ['authorization', 'cookie', 'csrf', 'password', 'secret', 'token', 'api_key', 'private_key'],
     'channels' => [
         'single' => [
             'driver' => 'single',

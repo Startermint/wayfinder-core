@@ -11,6 +11,7 @@ declare(strict_types=1);
 
 return [
     'default' => $_ENV['LOG_CHANNEL'] ?? 'single',
+    'sensitive_keys' => ['authorization', 'cookie', 'csrf', 'password', 'secret', 'token', 'api_key', 'private_key'],
     'channels' => [
         'single' => [
             'driver' => 'single',
@@ -44,3 +45,5 @@ Supported drivers:
 - `null`: discard logs
 
 For simple VPS deployments, `single` or `daily` is usually enough. For containerized deployments, prefer `stderr` and let the platform collect logs.
+
+Sensitive context values are redacted before Monolog writes records. The default redaction keys cover passwords, tokens, cookies, authorization headers, CSRF values, secrets, and API/private keys. Override `sensitive_keys` only when an application has additional names that should be masked.

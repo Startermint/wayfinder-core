@@ -139,4 +139,29 @@ final class LogManagerTest extends TestCase
             ],
         ]))->logger();
     }
+
+    public function testSensitiveContextIsRedactedBeforeWriting(): void
+    {
+        $path = $this->tempDir . '/logs/app.log';
+        $manager = new LogManager([
+            'default' => 'single',
+            'channels' => [
+                'single' => ['driver' => 'single', 'path' => $path],
+            ],
+        ]);
+
+        $manager->logger()->info('Login attempted', [
+            'email' => 'person@example.com',
+            'password' => 'secret-password',
+            'nested' => [
+                'api_token' => 'token-value',
+            ],
+        ]);
+
+        $contents = (string) file_get_contents($path);
+        self::assertStringContainsString('person@example.com', $contents);
+        self::assertStringNotContainsString('secret-password', $contents);
+        self::assertStringNotContainsString('token-value', $contents);
+        self::assertStringContainsString('[redacted]', $contents);
+    }
 }
