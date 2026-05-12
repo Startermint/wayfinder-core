@@ -59,6 +59,19 @@ $database->whenQueryingForLongerThan(250, function (Wayfinder\Database\QueryExec
 });
 ```
 
+Applications that use the container can also wire the reusable observability helper:
+
+```php
+$observability = new Wayfinder\Database\DatabaseObservability(
+    logger: $container->get(Psr\Log\LoggerInterface::class),
+    slowQueryMilliseconds: 250,
+);
+
+$database = $observability->configure($database);
+```
+
+The helper is idempotent for each `Database` instance, so resolving the same connection multiple times does not attach duplicate slow-query listeners.
+
 ## Reconnecting
 
 `Database::reconnect()` refreshes the underlying PDO connection. `DatabaseManager::disconnect()` drops a cached connection instance, and `DatabaseManager::reconnect()` creates a fresh one by name.
