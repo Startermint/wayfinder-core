@@ -8,10 +8,10 @@ use Predis\Client as PredisClient;
 use Pheanstalk\Pheanstalk;
 use Wayfinder\Contracts\Container;
 use Wayfinder\Database\Database;
-use Wayfinder\Queue\Connectors\BeanstalkdQueueConnection;
-use Wayfinder\Queue\Connectors\DatabaseQueueConnection;
-use Wayfinder\Queue\Connectors\RedisQueueConnection;
-use Wayfinder\Queue\Connectors\SyncQueueConnection;
+use Wayfinder\Queue\Drivers\Beanstalkd\BeanstalkdQueueDriver;
+use Wayfinder\Queue\Drivers\Database\DatabaseQueueDriver;
+use Wayfinder\Queue\Drivers\Redis\RedisQueueDriver;
+use Wayfinder\Queue\Drivers\Sync\SyncQueueDriver;
 use Wayfinder\Queue\Exception\QueueException;
 
 final class QueueManager
@@ -79,13 +79,13 @@ final class QueueManager
         }
 
         return match ($driver) {
-            'sync' => new SyncQueueConnection(
+            'sync' => new SyncQueueDriver(
                 $name,
                 $this->serializer(),
                 $this->handler(),
                 $this->defaultQueue($config),
             ),
-            'database' => new DatabaseQueueConnection(
+            'database' => new DatabaseQueueDriver(
                 $name,
                 $this->databaseFor($config),
                 $this->serializer(),
@@ -93,7 +93,7 @@ final class QueueManager
                 defaultQueue: $this->defaultQueue($config),
                 retryAfter: (int) ($config['retry_after'] ?? 90),
             ),
-            'redis' => new RedisQueueConnection(
+            'redis' => new RedisQueueDriver(
                 $name,
                 $this->redisClient($config),
                 $this->serializer(),
@@ -101,7 +101,7 @@ final class QueueManager
                 retryAfter: (int) ($config['retry_after'] ?? 90),
                 prefix: (string) ($config['prefix'] ?? 'queues:'),
             ),
-            'beanstalkd' => new BeanstalkdQueueConnection(
+            'beanstalkd' => new BeanstalkdQueueDriver(
                 $name,
                 $this->beanstalkd($config),
                 $this->serializer(),
@@ -190,4 +190,3 @@ final class QueueManager
         );
     }
 }
-

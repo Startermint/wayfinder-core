@@ -76,7 +76,9 @@ Wayfinder\Queue\Queue::setResolver(fn (?string $connection = null) => $manager->
 queue()->dispatch(new SendWelcomeEmail($userId));
 ```
 
-Use `make:queue-table` for the `jobs` table, `make:failed-jobs-table` for failed jobs, and `queue:work --connection=database --queue=default` to process native queued jobs.
+Use `make:queue-table` for the `jobs` table, `make:failed-jobs-table` for failed jobs, and `queue:work --connection=database --queue=default` to process native queued jobs. Workers reserve jobs through the shared queue driver contract, support named queues, release failed jobs until retry attempts are exceeded, and respond to `SIGTERM`/`SIGINT` for graceful shutdown. Use `--max-jobs=100` when a process manager should recycle workers after bounded work.
+
+Redis queue atomic operations are stored as small Lua scripts in `src/Queue/Drivers/Redis/Lua`.
 
 ## Use Wayfinder Through Stackmint
 

@@ -36,6 +36,7 @@ final class QueueWorkCommand implements Command
             sleep: max(0, (int) ($options['sleep'] ?? 3)),
             delay: max(0, (int) ($options['delay'] ?? 0)),
             once: (bool) ($options['once'] ?? false),
+            maxJobs: isset($options['max-jobs']) ? max(1, (int) $options['max-jobs']) : null,
         );
 
         $processed = $this->worker->run($workerOptions);
@@ -67,4 +68,3 @@ final class QueueWorkCommand implements Command
         return $options;
     }
 }
-

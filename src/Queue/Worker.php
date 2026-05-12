@@ -6,6 +6,8 @@ namespace Wayfinder\Queue;
 
 final class Worker
 {
+    private bool $shouldQuit = false;
+
     public function __construct(
         private readonly QueueManager $manager,
         private readonly PayloadSerializer $serializer = new PayloadSerializer(),
@@ -16,13 +18,29 @@ final class Worker
 
     public function run(WorkerOptions $options): int
     {
+        $this->shouldQuit = false;
+        $this->listenForSignals();
+
         $processed = 0;
 
         do {
-            $current = $this->runNextJob($options);
+            try {
+                $current = $this->runNextJob($options);
+            } catch (\Throwable $exception) {
+                if ($options->once) {
+                    throw $exception;
+                }
+
+                $current = 1;
+            }
+
             $processed += $current;
 
-            if ($options->once) {
+            if ($options->once || $this->shouldQuit) {
+                break;
+            }
+
+            if ($options->maxJobs !== null && $processed >= $options->maxJobs) {
                 break;
             }
 
@@ -34,10 +52,15 @@ final class Worker
         return $processed;
     }
 
+    public function stop(): void
+    {
+        $this->shouldQuit = true;
+    }
+
     public function runNextJob(WorkerOptions $options): int
     {
         $connection = $this->manager->connection($options->connection);
-        $queuedJob = $connection->pop($options->queue);
+        $queuedJob = $connection->reserve($options->queue);
 
         if ($queuedJob === null) {
             return 0;
@@ -61,5 +84,16 @@ final class Worker
 
             throw $exception;
         }
+    }
+
+    private function listenForSignals(): void
+    {
+        if (! function_exists('pcntl_signal') || ! function_exists('pcntl_async_signals')) {
+            return;
+        }
+
+        pcntl_async_signals(true);
+        pcntl_signal(SIGTERM, fn () => $this->stop());
+        pcntl_signal(SIGINT, fn () => $this->stop());
     }
 }

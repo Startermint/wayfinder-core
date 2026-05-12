@@ -88,10 +88,95 @@ final class NativeQueueTest extends TestCase
 
         $bus->dispatchLater(60, new NativeQueueHandledJob());
 
-        $job = $manager->connection('database')->pop();
+        $job = $manager->connection('database')->reserve();
 
         self::assertNull($job);
         self::assertSame(0, NativeQueueHandledJob::$handled);
+    }
+
+    public function testDatabaseQueueHonorsNamedQueues(): void
+    {
+        $database = $this->database();
+        $manager = $this->databaseQueueManager($database);
+        $bus = new NativeQueueBus($manager, 'database');
+
+        $bus->dispatchTo('emails', new NativeQueueHandledJob());
+
+        $worker = new Worker($manager);
+        self::assertSame(0, $worker->run(new WorkerOptions(connection: 'database', queue: 'default', once: true)));
+        self::assertSame(0, NativeQueueHandledJob::$handled);
+
+        self::assertSame(1, $worker->run(new WorkerOptions(connection: 'database', queue: 'emails', once: true)));
+        self::assertSame(1, NativeQueueHandledJob::$handled);
+    }
+
+    public function testWorkerStopsAfterMaxJobs(): void
+    {
+        $database = $this->database();
+        $manager = $this->databaseQueueManager($database);
+        $bus = new NativeQueueBus($manager, 'database');
+
+        $bus->dispatch(new NativeQueueHandledJob());
+        $bus->dispatch(new NativeQueueHandledJob());
+
+        $worker = new Worker($manager);
+        $processed = $worker->run(new WorkerOptions(connection: 'database', sleep: 0, maxJobs: 1));
+
+        self::assertSame(1, $processed);
+        self::assertSame(1, NativeQueueHandledJob::$handled);
+        self::assertCount(1, $database->query('SELECT * FROM jobs'));
+    }
+
+    public function testWorkerCountsFailedAttemptsTowardMaxJobs(): void
+    {
+        $database = $this->database();
+        $manager = $this->databaseQueueManager($database);
+        $bus = new NativeQueueBus($manager, 'database');
+        $bus->dispatch(new NativeQueueFailingJob());
+
+        $worker = new Worker($manager);
+        $processed = $worker->run(new WorkerOptions(connection: 'database', tries: 2, sleep: 0, maxJobs: 1));
+
+        self::assertSame(1, $processed);
+        self::assertSame(1, NativeQueueFailingJob::$handled);
+
+        $jobs = $database->query('SELECT * FROM jobs');
+        self::assertCount(1, $jobs);
+        self::assertSame(1, (int) $jobs[0]['attempts']);
+    }
+
+    public function testWorkerReleasesFailedJobUntilAttemptsAreExceeded(): void
+    {
+        $database = $this->database();
+        $manager = $this->databaseQueueManager($database);
+        $failed = new DatabaseFailedJobRepository($database);
+        $bus = new NativeQueueBus($manager, 'database');
+        $bus->dispatch(new NativeQueueFailingJob());
+
+        $worker = new Worker($manager, new PayloadSerializer(), new JobHandler(), $failed);
+
+        try {
+            $worker->runNextJob(new WorkerOptions(connection: 'database', tries: 2));
+            self::fail('Expected the first failed attempt to throw.');
+        } catch (\RuntimeException $exception) {
+            self::assertSame('Native queue job failed.', $exception->getMessage());
+        }
+
+        $jobs = $database->query('SELECT * FROM jobs');
+        self::assertCount(1, $jobs);
+        self::assertSame(1, (int) $jobs[0]['attempts']);
+        self::assertNull($jobs[0]['reserved_at']);
+        self::assertSame([], $failed->all());
+
+        $this->expectException(\RuntimeException::class);
+
+        try {
+            $worker->runNextJob(new WorkerOptions(connection: 'database', tries: 2));
+        } finally {
+            self::assertSame(2, NativeQueueFailingJob::$handled);
+            self::assertCount(1, $failed->all());
+            self::assertSame([], $database->query('SELECT * FROM jobs'));
+        }
     }
 
     public function testWorkerLogsFailedJobWhenAttemptsAreExceeded(): void

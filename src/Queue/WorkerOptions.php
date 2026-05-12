@@ -13,7 +13,7 @@ final readonly class WorkerOptions
         public int $sleep = 3,
         public int $delay = 0,
         public bool $once = false,
+        public ?int $maxJobs = null,
     ) {
     }
 }
-
