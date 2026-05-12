@@ -42,7 +42,23 @@ final class DatabaseManager
             throw new \RuntimeException(sprintf('Database connection [%s] is not configured.', $name));
         }
 
-        return $this->instances[$name] ??= new Database($this->connections[$name]);
+        return $this->instances[$name] ??= new Database($this->connections[$name], $name);
+    }
+
+    public function reconnect(?string $name = null): Database
+    {
+        $name ??= $this->defaultConnection;
+
+        unset($this->instances[$name]);
+
+        return $this->connection($name);
+    }
+
+    public function disconnect(?string $name = null): void
+    {
+        $name ??= $this->defaultConnection;
+
+        unset($this->instances[$name]);
     }
 
     /**

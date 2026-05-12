@@ -50,6 +50,29 @@ final class DatabaseManagerTest extends TestCase
         self::assertNotSame($default, $named);
     }
 
+    public function testCanDisconnectAndReconnectConnection(): void
+    {
+        $manager = new DatabaseManager([
+            'default' => 'primary',
+            'connections' => [
+                'primary' => [
+                    'driver' => 'sqlite',
+                    'path' => ':memory:',
+                ],
+            ],
+        ]);
+
+        $database = $manager->connection();
+        $manager->disconnect();
+
+        self::assertNotSame($database, $manager->connection());
+
+        $database = $manager->connection();
+        $reconnected = $manager->reconnect();
+
+        self::assertNotSame($database, $reconnected);
+    }
+
     public function testThrowsForUnknownNamedConnection(): void
     {
         $manager = new DatabaseManager([

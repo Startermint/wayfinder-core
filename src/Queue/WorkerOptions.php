@@ -14,6 +14,9 @@ final readonly class WorkerOptions
         public int $delay = 0,
         public bool $once = false,
         public ?int $maxJobs = null,
+        public ?int $maxSeconds = null,
+        public ?int $memory = null,
+        public ?int $timeout = null,
     ) {
     }
 }

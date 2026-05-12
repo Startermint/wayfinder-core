@@ -37,6 +37,10 @@ final class QueueWorkCommand implements Command
             delay: max(0, (int) ($options['delay'] ?? 0)),
             once: (bool) ($options['once'] ?? false),
             maxJobs: isset($options['max-jobs']) ? max(1, (int) $options['max-jobs']) : null,
+            maxSeconds: $this->positiveIntegerOption($options, 'max-seconds')
+                ?? $this->positiveIntegerOption($options, 'max-time'),
+            memory: isset($options['memory']) ? max(1, (int) $options['memory']) : null,
+            timeout: isset($options['timeout']) ? max(1, (int) $options['timeout']) : null,
         );
 
         $processed = $this->worker->run($workerOptions);
@@ -66,5 +70,13 @@ final class QueueWorkCommand implements Command
         }
 
         return $options;
+    }
+
+    /**
+     * @param array<string, mixed> $options
+     */
+    private function positiveIntegerOption(array $options, string $key): ?int
+    {
+        return isset($options[$key]) ? max(1, (int) $options[$key]) : null;
     }
 }

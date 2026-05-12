@@ -145,6 +145,17 @@ final class NativeQueueTest extends TestCase
         self::assertSame(1, (int) $jobs[0]['attempts']);
     }
 
+    public function testWorkerStopsAfterMaxSeconds(): void
+    {
+        $database = $this->database();
+        $manager = $this->databaseQueueManager($database);
+
+        $worker = new Worker($manager);
+        $processed = $worker->run(new WorkerOptions(connection: 'database', sleep: 0, maxSeconds: 0));
+
+        self::assertSame(0, $processed);
+    }
+
     public function testWorkerReleasesFailedJobUntilAttemptsAreExceeded(): void
     {
         $database = $this->database();

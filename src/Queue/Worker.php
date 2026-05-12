@@ -22,6 +22,7 @@ final class Worker
         $this->listenForSignals();
 
         $processed = 0;
+        $startedAt = time();
 
         do {
             try {
@@ -41,6 +42,14 @@ final class Worker
             }
 
             if ($options->maxJobs !== null && $processed >= $options->maxJobs) {
+                break;
+            }
+
+            if ($options->maxSeconds !== null && (time() - $startedAt) >= $options->maxSeconds) {
+                break;
+            }
+
+            if ($options->memory !== null && $this->memoryExceeded($options->memory)) {
                 break;
             }
 
@@ -68,7 +77,7 @@ final class Worker
 
         try {
             $job = $this->serializer->restore($queuedJob->payload);
-            $this->handler->handle($job);
+            $this->handleJob($job, $options);
             $connection->delete($queuedJob);
 
             return 1;
@@ -95,5 +104,31 @@ final class Worker
         pcntl_async_signals(true);
         pcntl_signal(SIGTERM, fn () => $this->stop());
         pcntl_signal(SIGINT, fn () => $this->stop());
+    }
+
+    private function memoryExceeded(int $megabytes): bool
+    {
+        return (memory_get_usage(true) / 1024 / 1024) >= $megabytes;
+    }
+
+    private function handleJob(object $job, WorkerOptions $options): void
+    {
+        if ($options->timeout === null || $options->timeout <= 0 || ! function_exists('pcntl_signal') || ! function_exists('pcntl_alarm')) {
+            $this->handler->handle($job);
+
+            return;
+        }
+
+        pcntl_signal(SIGALRM, static function () use ($options): void {
+            throw new \RuntimeException(sprintf('Queued job timed out after %d seconds.', $options->timeout));
+        });
+
+        pcntl_alarm($options->timeout);
+
+        try {
+            $this->handler->handle($job);
+        } finally {
+            pcntl_alarm(0);
+        }
     }
 }

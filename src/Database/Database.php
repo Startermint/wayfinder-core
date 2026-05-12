@@ -28,33 +28,52 @@ final class Database
      *     charset?: string,
      *     username?: string,
      *     password?: string,
-     *     path?: string
+     *     path?: string,
+     *     options?: array<int, mixed>,
+     *     timeout?: int|string,
+     *     persistent?: bool
      * } $config
      */
-    public function __construct(array $config)
+    public function __construct(
+        private readonly array $config,
+        private readonly string $connectionName = 'default',
+    )
     {
-        $driver = $config['driver'] ?? 'mysql';
-        $dsn = $this->buildDsn($driver, $config);
-
-        try {
-            $this->pdo = new PDO(
-                $dsn,
-                $config['username'] ?? null,
-                $config['password'] ?? null,
-                [
-                    PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
-                    PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
-                    PDO::ATTR_EMULATE_PREPARES => false,
-                ],
-            );
-        } catch (PDOException $exception) {
-            throw new \RuntimeException('Database connection failed.', 0, $exception);
-        }
+        $this->pdo = $this->connect();
     }
+
+    /** @var list<callable(QueryExecuted): void> */
+    private array $queryListeners = [];
+
+    /** @var list<callable(QueryExecuted): void> */
+    private array $slowQueryListeners = [];
 
     public function getConnection(): PDO
     {
         return $this->pdo;
+    }
+
+    public function reconnect(): void
+    {
+        if ($this->pretending) {
+            return;
+        }
+
+        $this->pdo = $this->connect();
+    }
+
+    public function listen(callable $listener): void
+    {
+        $this->queryListeners[] = $listener;
+    }
+
+    public function whenQueryingForLongerThan(int|float $milliseconds, callable $listener): void
+    {
+        $this->slowQueryListeners[] = static function (QueryExecuted $query) use ($milliseconds, $listener): void {
+            if ($query->milliseconds >= $milliseconds) {
+                $listener($query);
+            }
+        };
     }
 
     public function driver(): string
@@ -144,10 +163,12 @@ final class Database
         }
 
         try {
+            $startedAt = microtime(true);
             $statement = $this->pdo->prepare($sql);
             $statement->execute($bindings);
             $results = $statement->fetchAll();
             $statement->closeCursor();
+            $this->recordQuery($sql, $bindings, $startedAt);
 
             return $results;
         } catch (PDOException $exception) {
@@ -167,10 +188,12 @@ final class Database
         }
 
         try {
+            $startedAt = microtime(true);
             $statement = $this->pdo->prepare($sql);
             $statement->execute($bindings);
             $result = $statement->fetch();
             $statement->closeCursor();
+            $this->recordQuery($sql, $bindings, $startedAt);
 
             return $result;
         } catch (PDOException $exception) {
@@ -190,10 +213,12 @@ final class Database
         }
 
         try {
+            $startedAt = microtime(true);
             $statement = $this->pdo->prepare($sql);
             $statement->execute($bindings);
             $count = $statement->rowCount();
             $statement->closeCursor();
+            $this->recordQuery($sql, $bindings, $startedAt);
 
             return $count;
         } catch (PDOException $exception) {
@@ -347,6 +372,76 @@ final class Database
             'sqlite' => sprintf('sqlite:%s', $config['path'] ?? ':memory:'),
             default => throw new \InvalidArgumentException(sprintf('Unsupported database driver [%s].', $driver)),
         };
+    }
+
+    private function connect(): PDO
+    {
+        $driver = (string) ($this->config['driver'] ?? 'mysql');
+        $dsn = $this->buildDsn($driver, $this->config);
+
+        try {
+            return new PDO(
+                $dsn,
+                $this->config['username'] ?? null,
+                $this->config['password'] ?? null,
+                $this->pdoOptions($this->config),
+            );
+        } catch (PDOException $exception) {
+            throw new \RuntimeException('Database connection failed.', 0, $exception);
+        }
+    }
+
+    /**
+     * @param array<string, mixed> $config
+     * @return array<int, mixed>
+     */
+    private function pdoOptions(array $config): array
+    {
+        $options = [
+            PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
+            PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
+            PDO::ATTR_EMULATE_PREPARES => false,
+            PDO::ATTR_PERSISTENT => (bool) ($config['persistent'] ?? false),
+        ];
+
+        if (isset($config['timeout']) && is_numeric($config['timeout'])) {
+            $options[PDO::ATTR_TIMEOUT] = max(1, (int) $config['timeout']);
+        }
+
+        if (isset($config['options']) && is_array($config['options'])) {
+            foreach ($config['options'] as $key => $value) {
+                if (is_int($key)) {
+                    $options[$key] = $value;
+                }
+            }
+        }
+
+        return $options;
+    }
+
+    /**
+     * @param list<mixed> $bindings
+     */
+    private function recordQuery(string $sql, array $bindings, float $startedAt): void
+    {
+        if ($this->queryListeners === [] && $this->slowQueryListeners === []) {
+            return;
+        }
+
+        $query = new QueryExecuted(
+            $sql,
+            $bindings,
+            (microtime(true) - $startedAt) * 1000,
+            $this->connectionName,
+        );
+
+        foreach ($this->queryListeners as $listener) {
+            $listener($query);
+        }
+
+        foreach ($this->slowQueryListeners as $listener) {
+            $listener($query);
+        }
     }
 
     /**
