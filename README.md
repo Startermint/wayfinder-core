@@ -71,6 +71,12 @@ Wayfinder includes opt-in hardening primitives for trusted proxies, host validat
 
 See `docs/security.md`.
 
+## Error Rendering
+
+Debug browser requests render a native Wayfinder exception page with source context and stack frames. Production responses stay generic, and debug JSON requests still return structured JSON.
+
+See `docs/errors.md`.
+
 ## Dates
 
 Wayfinder uses Carbon for date/time handling. Prefer `Wayfinder\Support\Date`, which returns immutable Carbon dates and supports test clocks through `Wayfinder\Support\Clock`.
@@ -125,6 +131,8 @@ queue()->dispatch(new SendWelcomeEmail($userId));
 Use `make:queue-table` for the `jobs` table, `make:failed-jobs-table` for failed jobs, and `queue:work --connection=database --queue=default` to process native queued jobs. Workers reserve jobs through the shared queue driver contract, support named queues, release failed jobs until retry attempts are exceeded, and respond to `SIGTERM`/`SIGINT` for graceful shutdown. Use `--max-jobs=100`, `--max-time=3600`, `--memory=128`, and `--timeout=60` when a process manager should recycle or stop workers predictably.
 
 Redis queue atomic operations are stored as small Lua scripts in `src/Queue/Drivers/Redis/Lua`.
+
+See `docs/queue-workers.md` for Supervisor examples covering local `sync`, production `database`, production `redis`, named queues, and worker recycling options.
 
 ## Use Wayfinder Through Stackmint
 

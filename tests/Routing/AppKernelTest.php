@@ -93,8 +93,30 @@ final class AppKernelTest extends TestCase
         $response = $kernel->handle($this->makeRequest('GET', '/boom'));
 
         self::assertSame(500, $response->status());
+        self::assertSame('text/html; charset=utf-8', $response->headers()['Content-Type'] ?? null);
+        self::assertStringContainsString('Wayfinder Debug Exception', $response->content());
         self::assertStringContainsString('Secret error details', $response->content());
         self::assertStringContainsString('RuntimeException', $response->content());
+        self::assertStringContainsString('Stack Trace', $response->content());
+        self::assertStringContainsString('Source', $response->content());
+    }
+
+    public function testDebugJsonModeStillReturnsJsonExceptionDetails(): void
+    {
+        $router = $this->makeRouter();
+        $router->get('/boom', static function (): never {
+            throw new \RuntimeException('Secret JSON details');
+        });
+        $kernel = $this->makeKernel($router, debug: true);
+
+        $response = $kernel->handle($this->jsonRequest('GET', '/boom'));
+        $payload = json_decode($response->content(), true);
+
+        self::assertSame(500, $response->status());
+        self::assertSame('application/json; charset=utf-8', $response->headers()['Content-Type'] ?? null);
+        self::assertIsArray($payload);
+        self::assertSame('Secret JSON details', $payload['message'] ?? null);
+        self::assertSame(\RuntimeException::class, $payload['exception'] ?? null);
     }
 
     public function testNonDebugModeHidesExceptionDetails(): void

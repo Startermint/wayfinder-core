@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace Wayfinder\Foundation;
 
 use Throwable;
+use Wayfinder\Exceptions\ExceptionRenderer;
+use Wayfinder\Exceptions\PrettyExceptionRenderer;
 use Wayfinder\Http\Request;
 use Wayfinder\Http\Response;
 use Wayfinder\Http\ValidationException;
@@ -20,6 +22,7 @@ final class AppKernel
         private readonly bool $debug = false,
         private readonly Logger $logger = new NullLogger(),
         private readonly ?UrlGenerator $url = null,
+        private readonly ?ExceptionRenderer $exceptionRenderer = null,
     ) {
     }
 
@@ -82,14 +85,7 @@ final class AppKernel
                 ], 500);
             }
 
-            return Response::text(
-                "Internal Server Error\n"
-                . sprintf("Exception: %s\n", $throwable::class)
-                . sprintf("Message: %s\n", $throwable->getMessage())
-                . sprintf("File: %s:%d\n\n", $throwable->getFile(), $throwable->getLine())
-                . $throwable->getTraceAsString() . "\n",
-                500,
-            );
+            return ($this->exceptionRenderer ?? new PrettyExceptionRenderer())->render($throwable, $request);
         }
 
         if ($request->expectsJson()) {
