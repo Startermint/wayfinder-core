@@ -18,6 +18,7 @@ It intentionally does not include:
 
 - an ORM
 - a large hidden abstraction layer
+- an application skeleton or `new` project generator
 
 Wayfinder includes a native queue layer that can be wired explicitly for sync, database, Redis, and Beanstalkd queues. The optional Laravel-backed queue integration remains available under `Wayfinder\Integration\LaravelQueue` for applications that already use it.
 
@@ -136,9 +137,9 @@ See `docs/queue-workers.md` for Supervisor examples covering local `sync`, produ
 
 ## Use Wayfinder Through Stackmint
 
-Most developers should start from the Stackmint starter rather than consuming the core package in isolation.
+Most developers should start from the Stackmint skeleton rather than consuming the core package in isolation. Wayfinder Core does not ship an app scaffold; Stackmint owns the application layout, default configuration, starter views, and project CLI.
 
-- Stackmint starter: <https://github.com/trafficinc/stackmint>
+- Stackmint skeleton: <https://github.com/trafficinc/stackmint>
 - Full docs: <https://github.com/trafficinc/stackmint-docs>
 
 ## Package

@@ -3,9 +3,18 @@
     "description": "Wayfinder, an explicit, no-magic PHP framework core.",
     "type": "library",
     "license": "MIT",
-    "bin": [
-        "bin/wayfinder"
+    "homepage": "https://github.com/trafficinc/wayfinder-core",
+    "keywords": [
+        "framework",
+        "http",
+        "routing",
+        "stackmint",
+        "wayfinder"
     ],
+    "support": {
+        "issues": "https://github.com/trafficinc/wayfinder-core/issues",
+        "source": "https://github.com/trafficinc/wayfinder-core"
+    },
     "require": {
         "php": "^8.2",
         "illuminate/config": "^12.0",
