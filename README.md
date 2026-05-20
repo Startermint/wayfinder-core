@@ -139,8 +139,8 @@ See `docs/queue-workers.md` for Supervisor examples covering local `sync`, produ
 
 Most developers should start from the Stackmint skeleton rather than consuming the core package in isolation. Wayfinder Core does not ship an app scaffold; Stackmint owns the application layout, default configuration, starter views, and project CLI.
 
-- Stackmint skeleton: <https://github.com/trafficinc/stackmint>
-- Full docs: <https://github.com/trafficinc/stackmint-docs>
+- Stackmint skeleton: <https://github.com/Startermint/stackmint>
+- Full docs: <https://github.com/Startermint/stackmint-docs>
 
 ## Package
 
