@@ -21,7 +21,7 @@
         "illuminate/events": "^12.0",
         "illuminate/queue": "^12.0",
         "illuminate/redis": "^12.0",
-        "pda/pheanstalk": "^7.0",
+        "pda/pheanstalk": "^7.0 || ^8.0",
         "predis/predis": "^3.2",
         "symfony/http-foundation": "^7.0",
         "nesbot/carbon": "^3.0",
