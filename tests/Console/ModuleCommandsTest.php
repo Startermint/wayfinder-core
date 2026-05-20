@@ -32,7 +32,7 @@ final class ModuleCommandsTest extends TestCase
         $runner = function (array $command, string $cwd) use ($app): int {
             self::assertSame($app, $cwd);
 
-            if ($command === ['composer', 'config', 'repositories.startermint-stackmint-auth', 'vcs', 'https://github.com/Startermint/stackmint-auth']) {
+            if ($command === ['composer', 'config', 'repositories.startermint-stackmint-auth', 'vcs', 'git@github.com:Startermint/stackmint-auth.git']) {
                 return 0;
             }
 
@@ -53,7 +53,7 @@ final class ModuleCommandsTest extends TestCase
             'auth' => [
                 'package' => 'startermint/stackmint-auth',
                 'module' => 'Auth',
-                'repository' => 'https://github.com/Startermint/stackmint-auth',
+                'repository' => 'git@github.com:Startermint/stackmint-auth.git',
             ],
         ], $runner, $stdout, $stderr);
 
@@ -122,7 +122,7 @@ final class ModuleCommandsTest extends TestCase
             'auth' => [
                 'package' => 'startermint/stackmint-auth',
                 'module' => 'Auth',
-                'repository' => 'https://github.com/Startermint/stackmint-auth',
+                'repository' => 'git@github.com:Startermint/stackmint-auth.git',
             ],
         ], $runner, $stdout, $stderr);
 
