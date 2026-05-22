@@ -135,6 +135,12 @@ Redis queue atomic operations are stored as small Lua scripts in `src/Queue/Driv
 
 See `docs/queue-workers.md` for Supervisor examples covering local `sync`, production `database`, production `redis`, named queues, and worker recycling options.
 
+## Scenarios and Fake Transports
+
+Wayfinder includes framework-level scenario primitives and scoped fake transport adapters for mail, SMS, queues, and webhooks. Fake transports are ordinary drivers that record delivery intent during tests or scenario runs; application code continues to depend on transport interfaces.
+
+See `docs/scenarios.md`.
+
 ## Use Wayfinder Through Stackmint
 
 Most developers should start from the Stackmint skeleton rather than consuming the core package in isolation. Wayfinder Core does not ship an app scaffold; Stackmint owns the application layout, default configuration, starter views, and project CLI.

@@ -47,6 +47,45 @@ final class Container implements ContainerContract
         return $this;
     }
 
+    /**
+     * @param array<string, mixed> $instances
+     */
+    public function scopedInstances(array $instances, callable $callback): mixed
+    {
+        $previousInstances = [];
+        $previousBindings = [];
+
+        foreach ($instances as $id => $instance) {
+            $previousInstances[$id] = array_key_exists($id, $this->instances)
+                ? ['exists' => true, 'value' => $this->instances[$id]]
+                : ['exists' => false, 'value' => null];
+            $previousBindings[$id] = array_key_exists($id, $this->bindings)
+                ? ['exists' => true, 'value' => $this->bindings[$id]]
+                : ['exists' => false, 'value' => null];
+
+            unset($this->bindings[$id]);
+            $this->instances[$id] = $instance;
+        }
+
+        try {
+            return $callback($this);
+        } finally {
+            foreach ($instances as $id => $_) {
+                if ($previousInstances[$id]['exists']) {
+                    $this->instances[$id] = $previousInstances[$id]['value'];
+                } else {
+                    unset($this->instances[$id]);
+                }
+
+                if ($previousBindings[$id]['exists']) {
+                    $this->bindings[$id] = $previousBindings[$id]['value'];
+                } else {
+                    unset($this->bindings[$id]);
+                }
+            }
+        }
+    }
+
     public function has(string $id): bool
     {
         return array_key_exists($id, $this->instances)
